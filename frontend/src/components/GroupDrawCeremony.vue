@@ -1,17 +1,21 @@
 <template>
   <div class="ceremony-container">
-    <n-card title="Group Draw Ceremony">
+    <n-card :title="t('ceremony.title')">
       <div class="controls">
-        <n-input v-model:value="stageId" placeholder="Enter Stage ID" style="width: 300px; margin-right: 1rem;" />
+        <n-input v-model:value="stageId" :placeholder="t('ceremony.placeholder_stage_id')" style="width: 300px; margin-right: 1rem;" />
         <n-button type="primary" @click="startShuffle" :disabled="isShuffling || isRevealing || !stageId">
-          Start Shuffle
+          {{ t('ceremony.start_shuffle') }}
         </n-button>
         <n-button type="warning" @click="stopShuffle" :disabled="!isShuffling" style="margin-left: 1rem;">
-          Stop & Reveal
+          {{ t('ceremony.stop_reveal') }}
         </n-button>
         <n-button type="success" @click="confirmGroups" :disabled="!finalData || isRevealing || isShuffling" style="margin-left: 1rem;">
-          Confirm & Save
+          {{ t('ceremony.confirm_save') }}
         </n-button>
+      </div>
+
+      <div style="margin-bottom: 1rem; font-weight: bold; font-size: 1.2em;">
+        Status: {{ statusText }}
       </div>
 
       <div class="groups-grid">
@@ -32,13 +36,22 @@
 <script setup lang="ts">
 import { ref, computed, onUnmounted } from 'vue'
 import { useMessage, NCard, NButton, NInput, NList, NListItem } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { getDrawPreview, saveGroups } from '../api/stages'
 
+const { t } = useI18n()
 const message = useMessage()
 const stageId = ref('')
 const isShuffling = ref(false)
 const isRevealing = ref(false)
 const finalData = ref<Record<string, any[]> | null>(null)
+
+const statusText = computed(() => {
+  if (finalData.value) return t('ceremony.status.finalized')
+  if (isRevealing.value) return t('ceremony.status.revealing')
+  if (isShuffling.value) return t('ceremony.status.shuffling')
+  return t('ceremony.status.ready')
+})
 
 // For visualization, we need a set of group names.
 // Initially we might not know them, but once we start shuffle, we can assume 14 groups or just show "Group A"..."Group N" based on some default.
@@ -62,7 +75,7 @@ const dummyNames = ["Player A", "Player B", "Player C", "Player D", "Wait...", "
 
 const startShuffle = () => {
   if (!stageId.value) {
-    message.error("Please enter a Stage ID")
+    message.error(t('ceremony.please_enter_stage_id'))
     return
   }
   isShuffling.value = true
@@ -108,11 +121,11 @@ const stopShuffle = async () => {
     shuffleState.value = data
 
     isRevealing.value = false
-    message.success("Draw Complete! Review and Confirm.")
+    message.success(t('ceremony.draw_complete'))
 
   } catch (e) {
     console.error(e)
-    message.error("Failed to fetch draw preview. Check Stage ID and backend.")
+    message.error(t('ceremony.fetch_fail'))
     if (shuffleInterval) clearInterval(shuffleInterval)
     isShuffling.value = false
   }
@@ -130,10 +143,10 @@ const confirmGroups = async () => {
 
   try {
     await saveGroups(stageId.value, finalData.value)
-    message.success("Groups saved successfully!")
+    message.success(t('ceremony.save_success'))
     // Redirect or Reset?
   } catch (e) {
-    message.error("Failed to save groups.")
+    message.error(t('ceremony.save_fail'))
   }
 }
 

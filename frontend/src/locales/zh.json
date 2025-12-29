@@ -1,0 +1,26 @@
+{
+  "ceremony": {
+    "title": "抽签仪式",
+    "placeholder_stage_id": "输入阶段ID",
+    "start_shuffle": "开始喵!",
+    "stop_reveal": "停止 & 揭晓",
+    "confirm_save": "确认 & 保存",
+    "draw_complete": "抽签完成！请复核并确认。",
+    "fetch_fail": "获取抽签预览失败。请检查阶段ID和后台。",
+    "save_success": "分组保存成功！",
+    "save_fail": "保存分组失败。",
+    "please_enter_stage_id": "请输入阶段ID",
+    "status": {
+      "ready": "准备开始",
+      "shuffling": "洗牌中...",
+      "revealing": "正在揭晓结果",
+      "finalized": "抽签已完成"
+    }
+  },
+  "general": {
+    "welcome": "喵喵杯",
+    "subtitle": "欢迎使用赛事管理系统",
+    "home": "首页",
+    "language": "语言"
+  }
+}

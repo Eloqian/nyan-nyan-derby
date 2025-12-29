@@ -1,9 +1,25 @@
 <script setup lang="ts">
-import { NConfigProvider, NMessageProvider, NDialogProvider } from 'naive-ui'
+import { NConfigProvider, NMessageProvider, NDialogProvider, zhCN, enUS, jaJP, dateZhCN, dateEnUS, dateJaJP } from 'naive-ui'
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { locale } = useI18n()
+
+const naiveLocale = computed(() => {
+  if (locale.value === 'zh') return zhCN
+  if (locale.value === 'ja') return jaJP
+  return enUS
+})
+
+const naiveDateLocale = computed(() => {
+  if (locale.value === 'zh') return dateZhCN
+  if (locale.value === 'ja') return dateJaJP
+  return dateEnUS
+})
 </script>
 
 <template>
-  <n-config-provider>
+  <n-config-provider :locale="naiveLocale" :date-locale="naiveDateLocale">
     <n-message-provider>
       <n-dialog-provider>
         <router-view />
