@@ -1,5 +1,5 @@
-from typing import Optional, List
-from sqlmodel import SQLModel, Field, Relationship
+from typing import Optional, List, Dict, Any
+from sqlmodel import SQLModel, Field, Relationship, JSON
 from uuid import UUID, uuid4
 from datetime import datetime
 from pydantic import EmailStr
@@ -24,9 +24,12 @@ class Player(PlayerBase, table=True):
     id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
     user_id: Optional[UUID] = Field(default=None, foreign_key="user.id")
 
-    # Metadata for roster import (e.g. initial seed info)
-    # Stored as generic JSON if needed, or specific columns.
-    # For now, keeping it simple.
+    # Seeding Logic: 0 = None, 1 = Group Head, 2 = Skip Audition
+    seed_level: int = Field(default=0)
+
+    # Cache for aggregated stats (e.g., {"first_place_count": 5})
+    # This allows efficient tie-breaking without complex joins every time
+    stats: Dict[str, Any] = Field(default={}, sa_type=JSON)
 
     user: Optional[User] = Relationship(back_populates="players")
     matches: List["MatchParticipant"] = Relationship(back_populates="player")
