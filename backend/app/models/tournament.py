@@ -27,6 +27,9 @@ class Tournament(SQLModel, table=True):
     status: TournamentStatus = Field(default=TournamentStatus.SETUP)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+    # General configuration for the tournament (e.g. seed_ratio: 0.1)
+    rules_config: Dict[str, Any] = Field(default={}, sa_type=JSON)
+
     stages: List["Stage"] = Relationship(back_populates="tournament")
 
 class Stage(SQLModel, table=True):
@@ -38,6 +41,9 @@ class Stage(SQLModel, table=True):
 
     # Stores scoring rules (e.g. {"1st": 9, "bonus": ...})
     rules_config: Dict[str, Any] = Field(default={}, sa_type=JSON)
+
+    # Configuration for progression, specifically wildcards (e.g. {"wildcard_count": 12, "strategy": "global_best_losers"})
+    wildcard_rules: Dict[str, Any] = Field(default={}, sa_type=JSON)
 
     tournament: Tournament = Relationship(back_populates="stages")
     groups: List["Group"] = Relationship(back_populates="stage")
