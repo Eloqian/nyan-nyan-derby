@@ -55,6 +55,14 @@ class Group(SQLModel, table=True):
 
     stage: Stage = Relationship(back_populates="groups")
     matches: List["Match"] = Relationship(back_populates="group")
+    participants: List["GroupParticipant"] = Relationship(back_populates="group")
+
+class GroupParticipant(SQLModel, table=True):
+    group_id: UUID = Field(foreign_key="group.id", primary_key=True)
+    player_id: UUID = Field(foreign_key="player.id", primary_key=True)
+
+    group: Group = Relationship(back_populates="participants")
+    player: "Player" = Relationship(back_populates="groups")
 
 class Match(SQLModel, table=True):
     id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
