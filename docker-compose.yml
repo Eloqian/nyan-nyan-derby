@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: meow_user
+      POSTGRES_PASSWORD: meow_password
+      POSTGRES_DB: meow_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: postgresql+asyncpg://meow_user:meow_password@db:5432/meow_db
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+
+volumes:
+  postgres_data:
