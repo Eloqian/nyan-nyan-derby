@@ -1,0 +1,26 @@
+{
+  "ceremony": {
+    "title": "Group Draw Ceremony",
+    "placeholder_stage_id": "Enter Stage ID",
+    "start_shuffle": "Start Meow!",
+    "stop_reveal": "Stop & Reveal",
+    "confirm_save": "Confirm & Save",
+    "draw_complete": "Draw Complete! Review and Confirm.",
+    "fetch_fail": "Failed to fetch draw preview. Check Stage ID and backend.",
+    "save_success": "Groups saved successfully!",
+    "save_fail": "Failed to save groups.",
+    "please_enter_stage_id": "Please enter a Stage ID",
+    "status": {
+      "ready": "Ready to Start",
+      "shuffling": "Shuffling...",
+      "revealing": "Revealing Results",
+      "finalized": "Draw Finalized"
+    }
+  },
+  "general": {
+    "welcome": "Meow Meow Cup",
+    "subtitle": "Welcome to the Tournament Management System",
+    "home": "Home",
+    "language": "Language"
+  }
+}

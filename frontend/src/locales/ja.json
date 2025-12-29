@@ -1,0 +1,26 @@
+{
+  "ceremony": {
+    "title": "グループ抽選会",
+    "placeholder_stage_id": "ステージIDを入力",
+    "start_shuffle": "スタートニャー！",
+    "stop_reveal": "ストップ & 公開",
+    "confirm_save": "確認 & 保存",
+    "draw_complete": "抽選完了！確認してください。",
+    "fetch_fail": "抽選プレビューの取得に失敗しました。ステージIDとバックエンドを確認してください。",
+    "save_success": "グループが正常に保存されました！",
+    "save_fail": "グループの保存に失敗しました。",
+    "please_enter_stage_id": "ステージIDを入力してください",
+    "status": {
+      "ready": "開始準備完了",
+      "shuffling": "シャッフル中...",
+      "revealing": "結果を発表中",
+      "finalized": "抽選完了"
+    }
+  },
+  "general": {
+    "welcome": "ニャンニャンカップ",
+    "subtitle": "トーナメント管理システムへようこそ",
+    "home": "ホーム",
+    "language": "言語"
+  }
+}
