@@ -4,10 +4,12 @@ from app.db import get_session
 from app.models.tournament import Stage, Group, Match, GroupParticipant, Tournament, MatchParticipant, Race, RaceResult
 from app.models.user import Player
 from app.services.logic.draw_engine import DrawEngine
+from app.services.logic.progression import ProgressionEngine
 from uuid import UUID
 from typing import Dict, List, Any, Optional
 from sqlmodel import select
 from pydantic import BaseModel
+import math
 
 router = APIRouter()
 
@@ -26,13 +28,21 @@ class MatchView(BaseModel):
     status: str
     host_player_id: Optional[UUID]
     participants: List[ParticipantView]
-    # Optionally include existing results if any
     results: List[Dict[str, Any]] = []
 
 class GroupView(BaseModel):
     id: UUID
     name: str
     matches: List[MatchView]
+
+class StandingsItem(BaseModel):
+    rank: int
+    player_id: UUID
+    name: str
+    total_points: int
+    matches_played: int
+    first_places: int
+    is_npc: bool
 
 # ---------------------
 
@@ -64,7 +74,7 @@ async def get_stage_matches_view(
             participants_view = []
             for mp, player in mp_results:
                 participants_view.append(ParticipantView(
-                    player=PlayerView(id=player.id, name=player.name, is_npc=player.is_npc)
+                    player=PlayerView(id=player.id, name=player.in_game_name, is_npc=player.is_npc)
                 ))
 
             # Get Results (Assuming single race per match for now, or just aggregating)
@@ -97,6 +107,104 @@ async def get_stage_matches_view(
         ))
 
     return view_data
+
+@router.get("/{stage_id}/standings", response_model=List[StandingsItem])
+async def get_stage_standings(
+    stage_id: UUID,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Returns the leaderboard for the stage.
+    """
+    stage = await session.get(Stage, stage_id)
+    if not stage:
+        raise HTTPException(status_code=404, detail="Stage not found")
+
+    # Fetch all relevant data in bulk to avoid N+1
+    # We need all RaceResults for matches in this stage
+    stmt = (
+        select(RaceResult, Race, Match, Group, Player)
+        .join(Race, RaceResult.race_id == Race.id)
+        .join(Match, Race.match_id == Match.id)
+        .join(Group, Match.group_id == Group.id)
+        .join(Player, RaceResult.player_id == Player.id)
+        .where(Group.stage_id == stage_id)
+    )
+
+    results = (await session.exec(stmt)).all()
+
+    # Aggregate in memory
+    player_stats: Dict[UUID, Dict[str, Any]] = {}
+
+    for rr, race, match, group, player in results:
+        if player.id not in player_stats:
+            player_stats[player.id] = {
+                "player_id": player.id,
+                "name": player.in_game_name,
+                "is_npc": player.is_npc,
+                "raw_points": 0,
+                "first_places": 0,
+                "matches_played_ids": set(),
+                "all_results": []
+            }
+
+        stats = player_stats[player.id]
+        stats["raw_points"] += rr.points_awarded
+        stats["matches_played_ids"].add(match.id)
+        stats["all_results"].append(rr)
+
+        # Assuming points_awarded == 9 is a win (standard rule)
+        # Or should we trust rank==1?
+        # If NPC shift happened, rank might be 1 but original rank was 2.
+        # But points_awarded is the source of truth for "effective" score.
+        if rr.points_awarded == 9:
+            stats["first_places"] += 1
+
+    # Calculate Bonus and Finalize
+    standings_list = []
+    for pid, stats in player_stats.items():
+        total_points = stats["raw_points"]
+        matches_count = len(stats["matches_played_ids"])
+
+        # Check for Dominance Bonus
+        # Rule: If 1st_count > floor(total_rounds / 2), bonus = (count - floor) * 2
+        # We can implement this directly or call the engine.
+        # Let's keep it direct here for speed, matching the engine logic.
+        if matches_count > 0:
+            threshold = math.floor(matches_count / 2)
+            if stats["first_places"] > threshold:
+                bonus = (stats["first_places"] - threshold) * 2
+                total_points += bonus
+
+        standings_list.append({
+            "player_id": pid,
+            "name": stats["name"],
+            "total_points": total_points,
+            "matches_played": matches_count,
+            "first_places": stats["first_places"],
+            "is_npc": stats["is_npc"]
+        })
+
+    # Sort
+    # 1. Total Points (Desc)
+    # 2. First Places (Desc)
+    # 3. Name (Asc) - as tiebreaker
+    standings_list.sort(key=lambda x: (-x["total_points"], -x["first_places"], x["name"]))
+
+    # Assign Ranks
+    final_output = []
+    for i, item in enumerate(standings_list):
+        final_output.append(StandingsItem(
+            rank=i + 1,
+            player_id=item["player_id"],
+            name=item["name"],
+            total_points=item["total_points"],
+            matches_played=item["matches_played"],
+            first_places=item["first_places"],
+            is_npc=item["is_npc"]
+        ))
+
+    return final_output
 
 @router.post("/{stage_id}/draw_preview")
 async def draw_preview(
