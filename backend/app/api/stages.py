@@ -1,14 +1,102 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db import get_session
-from app.models.tournament import Stage, Group, Match, GroupParticipant, Tournament
+from app.models.tournament import Stage, Group, Match, GroupParticipant, Tournament, MatchParticipant, Race, RaceResult
 from app.models.user import Player
 from app.services.logic.draw_engine import DrawEngine
 from uuid import UUID
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from sqlmodel import select
+from pydantic import BaseModel
 
 router = APIRouter()
+
+# --- DTOs for View ---
+class PlayerView(BaseModel):
+    id: UUID
+    name: str
+    is_npc: bool
+
+class ParticipantView(BaseModel):
+    player: PlayerView
+
+class MatchView(BaseModel):
+    id: UUID
+    name: str | None
+    status: str
+    host_player_id: Optional[UUID]
+    participants: List[ParticipantView]
+    # Optionally include existing results if any
+    results: List[Dict[str, Any]] = []
+
+class GroupView(BaseModel):
+    id: UUID
+    name: str
+    matches: List[MatchView]
+
+# ---------------------
+
+@router.get("/{stage_id}/matches_view", response_model=List[GroupView])
+async def get_stage_matches_view(
+    stage_id: UUID,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Returns a hierarchical view of groups -> matches -> participants for the Referee Dashboard.
+    """
+    # 1. Get Groups
+    stmt = select(Group).where(Group.stage_id == stage_id).order_by(Group.name)
+    groups = (await session.exec(stmt)).all()
+
+    view_data = []
+
+    for group in groups:
+        # Get Matches for Group
+        m_stmt = select(Match).where(Match.group_id == group.id).order_by(Match.name) # simplified sort
+        matches = (await session.exec(m_stmt)).all()
+
+        matches_view = []
+        for match in matches:
+            # Get Participants
+            mp_stmt = select(MatchParticipant, Player).join(Player).where(MatchParticipant.match_id == match.id)
+            mp_results = (await session.exec(mp_stmt)).all()
+
+            participants_view = []
+            for mp, player in mp_results:
+                participants_view.append(ParticipantView(
+                    player=PlayerView(id=player.id, name=player.name, is_npc=player.is_npc)
+                ))
+
+            # Get Results (Assuming single race per match for now, or just aggregating)
+            # We want to know if results exist to highlight the card
+            # And maybe show current state (rank)
+            r_stmt = select(RaceResult).join(Race).where(Race.match_id == match.id)
+            race_results = (await session.exec(r_stmt)).all()
+
+            results_list = []
+            for rr in race_results:
+                results_list.append({
+                    "player_id": str(rr.player_id),
+                    "rank": rr.rank,
+                    "points": rr.points_awarded
+                })
+
+            matches_view.append(MatchView(
+                id=match.id,
+                name=match.name,
+                status=match.status,
+                host_player_id=match.host_player_id,
+                participants=participants_view,
+                results=results_list
+            ))
+
+        view_data.append(GroupView(
+            id=group.id,
+            name=group.name,
+            matches=matches_view
+        ))
+
+    return view_data
 
 @router.post("/{stage_id}/draw_preview")
 async def draw_preview(
