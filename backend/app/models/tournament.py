@@ -70,6 +70,7 @@ class Match(SQLModel, table=True):
     name: Optional[str] = None # e.g. "Upper Bracket R1 M1"
     start_time: Optional[datetime] = None
     status: MatchStatus = Field(default=MatchStatus.PENDING)
+    host_player_id: Optional[UUID] = Field(default=None, foreign_key="player.id")
 
     group: Group = Relationship(back_populates="matches")
     participants: List["MatchParticipant"] = Relationship(back_populates="match")

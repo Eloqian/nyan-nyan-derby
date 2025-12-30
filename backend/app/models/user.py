@@ -1,12 +1,12 @@
 from typing import Optional, List, Dict, Any
-from sqlmodel import SQLModel, Field, Relationship, JSON
+from sqlmodel import SQLModel, Field, Relationship, JSON, AutoString
 from uuid import UUID, uuid4
 from datetime import datetime
 from pydantic import EmailStr
 
 class UserBase(SQLModel):
     username: str = Field(index=True, unique=True)
-    email: Optional[EmailStr] = Field(default=None, index=True)
+    email: Optional[EmailStr] = Field(default=None, index=True, sa_type=AutoString)
     is_admin: bool = False
 
 class User(UserBase, table=True):

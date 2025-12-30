@@ -1,6 +1,6 @@
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.models import Tournament, Stage, Group, Match, MatchParticipant, Player, Race, RaceResult
+from app.models import Tournament, Stage, Group, Match, MatchParticipant, Player, Race, RaceResult, GroupParticipant
 from app.services.logic.scoring import ScoringEngine
 from typing import List, Dict
 import random
@@ -71,6 +71,94 @@ class TournamentService:
             created_groups.append(group)
 
         return created_groups
+
+    async def generate_matches_for_stage(self, stage_id: str) -> List[Match]:
+        """
+        Generates matches for all groups in the stage.
+        Specific logic for "6-player group audition" (6人组海选).
+        """
+        stage = await self.session.get(Stage, stage_id)
+        if not stage:
+            raise ValueError("Stage not found")
+
+        # Get all groups in the stage
+        stmt = select(Group).where(Group.stage_id == stage_id)
+        groups = (await self.session.exec(stmt)).all()
+
+        created_matches = []
+        for group in groups:
+             matches = await self._generate_matches_for_group(group)
+             created_matches.extend(matches)
+
+        return created_matches
+
+    async def _generate_matches_for_group(self, group: Group) -> List[Match]:
+        """
+        Logic for 6-player group:
+        - 10 matches total
+        - 3 players per match
+        - Each player plays exactly 5 matches
+        - Balanced pairs (BIBD)
+        - Host assignment balanced
+        """
+        # Fetch participants
+        stmt = select(GroupParticipant).where(GroupParticipant.group_id == group.id)
+        participants = (await self.session.exec(stmt)).all()
+        player_ids = [p.player_id for p in participants]
+
+        # We expect 6 players. If not 6, we log warning/error or proceed best effort?
+        # For this specific task, we implement the 6-player logic.
+        if len(player_ids) != 6:
+            # If not 6, we skip match generation for this group to avoid errors, or raise.
+            # Assuming strictly 6 as per requirement.
+            # But let's raise for visibility if this logic is strictly for 6.
+            raise ValueError(f"Group {group.id} has {len(player_ids)} players, expected 6 for audition logic.")
+
+        # Hardcoded matrix (0-5 indices)
+        # 10 Matches, 3 Participants each.
+        matches_indices = [
+           (0, 1, 2), (0, 1, 3), (0, 2, 4), (0, 3, 5), (0, 4, 5),
+           (1, 2, 5), (1, 3, 4), (1, 4, 5), (2, 3, 4), (2, 3, 5)
+        ]
+
+        matches = []
+
+        # Host tracking: player_id -> count
+        host_counts = {pid: 0 for pid in player_ids}
+
+        for idx, indices in enumerate(matches_indices):
+            # Resolve players for this match
+            match_player_ids = [player_ids[i] for i in indices]
+
+            # Determine Host
+            # Sort match_players by host_count ascending, then random tie-break
+            candidates = list(match_player_ids)
+            random.shuffle(candidates)
+            candidates.sort(key=lambda p: host_counts[p])
+
+            host_id = candidates[0]
+            host_counts[host_id] += 1
+
+            # Create Match
+            match = Match(
+                group_id=group.id,
+                name=f"{group.name} - Match {idx + 1}",
+                host_player_id=host_id,
+                status="pending"
+            )
+            self.session.add(match)
+            await self.session.commit()
+            await self.session.refresh(match)
+
+            # Create Participants
+            for pid in match_player_ids:
+                mp = MatchParticipant(match_id=match.id, player_id=pid)
+                self.session.add(mp)
+
+            matches.append(match)
+
+        await self.session.commit()
+        return matches
 
     async def record_race_result(self, match_id: str, race_number: int, rankings: List[str]):
         """
