@@ -3,31 +3,31 @@
     <n-card class="auth-card">
       <div class="header">
         <h1>🏆</h1>
-        <h2>{{ isLogin ? 'Welcome Back' : 'Join the Race' }}</h2>
+        <h2>{{ isLogin ? t('login.welcome_back') : t('login.join_race') }}</h2>
       </div>
 
       <n-form ref="formRef" :model="model" :rules="rules">
-        <n-form-item path="username" label="Username">
-          <n-input v-model:value="model.username" placeholder="Trainer Name" />
+        <n-form-item path="username" :label="t('login.username')">
+          <n-input v-model:value="model.username" :placeholder="t('login.trainer_name')" />
         </n-form-item>
-        <n-form-item path="password" label="Password">
+        <n-form-item path="password" :label="t('login.password')">
           <n-input
             v-model:value="model.password"
             type="password"
             show-password-on="click"
-            placeholder="Secret Code"
+            :placeholder="t('login.secret_code')"
           />
         </n-form-item>
         <!-- Email optional for now -->
       </n-form>
 
       <n-button type="primary" block size="large" @click="handleSubmit" :loading="loading">
-        {{ isLogin ? 'Login' : 'Register' }}
+        {{ isLogin ? t('login.login') : t('login.register') }}
       </n-button>
 
       <div class="footer">
         <n-button text type="primary" @click="isLogin = !isLogin">
-          {{ isLogin ? 'Need an account? Register' : 'Already have an account? Login' }}
+          {{ isLogin ? t('login.need_account') : t('login.have_account') }}
         </n-button>
       </div>
     </n-card>
@@ -35,14 +35,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useMessage, NCard, NForm, NFormItem, NInput, NButton } from 'naive-ui'
 
 const router = useRouter()
 const auth = useAuthStore()
 const message = useMessage()
+const { t } = useI18n()
 
 const isLogin = ref(true)
 const loading = ref(false)
@@ -52,10 +54,10 @@ const model = reactive({
   password: ''
 })
 
-const rules = {
-  username: { required: true, message: 'Required', trigger: 'blur' },
-  password: { required: true, message: 'Required', trigger: 'blur' }
-}
+const rules = computed(() => ({
+  username: { required: true, message: t('login.required'), trigger: 'blur' },
+  password: { required: true, message: t('login.required'), trigger: 'blur' }
+}))
 
 const handleSubmit = async () => {
   loading.value = true
@@ -68,19 +70,19 @@ const handleSubmit = async () => {
       
       const success = await auth.login(formData)
       if (success) {
-        message.success('Welcome back, Trainer!')
+        message.success(t('login.welcome_trainer'))
         router.push('/')
       } else {
-        message.error('Invalid credentials')
+        message.error(t('login.invalid_credentials'))
       }
     } else {
       // Register uses JSON
       await auth.register({ username: model.username, password: model.password })
-      message.success('Registration successful! Please login.')
+      message.success(t('login.register_success'))
       isLogin.value = true
     }
   } catch (e) {
-    message.error('An error occurred')
+    message.error(t('login.error_occurred'))
   } finally {
     loading.value = false
   }

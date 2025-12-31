@@ -1,19 +1,19 @@
 <template>
   <div class="profile-container">
-    <n-card :title="`Trainer Card: ${auth.user?.username}`" style="margin-bottom: 24px;">
+    <n-card :title="`${t('profile.title')}: ${auth.user?.username}`" style="margin-bottom: 24px;">
       <div class="stats-row">
-        <n-statistic label="Role" :value="auth.user?.is_admin ? 'Admin' : 'Trainer'" />
-        <n-statistic label="Bound Player" :value="boundPlayerName || 'None'" />
+        <n-statistic :label="t('profile.role')" :value="auth.user?.is_admin ? t('profile.role_admin') : t('profile.role_trainer')" />
+        <n-statistic :label="t('profile.bound_player')" :value="boundPlayerName || t('profile.none')" />
       </div>
     </n-card>
 
     <!-- Claim Section -->
-    <n-card title="Check-in / Claim Player" v-if="!boundPlayerName && !loadingPlayer">
-      <p>Please enter your QQ ID to verify your identity and claim your tournament slot.</p>
+    <n-card :title="`${t('profile.checkin_status')}`" v-if="!boundPlayerName && !loadingPlayer">
+      <p>{{ t('profile.qq_verify_prompt') }}</p>
       <n-input-group>
-        <n-input v-model:value="qqId" placeholder="Enter QQ ID" />
+        <n-input v-model:value="qqId" :placeholder="t('profile.enter_qq_id')" />
         <n-button type="primary" @click="handleClaim" :loading="claiming">
-          Verify & Claim
+          {{ t('profile.checkin') }}
         </n-button>
       </n-input-group>
     </n-card>
@@ -21,7 +21,7 @@
     <!-- Matches Section -->
     <div v-if="boundPlayerName">
       <div class="section-header">
-        <h2>📅 My Matches</h2>
+        <h2>{{ t('profile.my_matches') }}</h2>
         <n-button size="small" secondary circle @click="fetchMatches">
           <template #icon><n-icon><Refresh /></n-icon></template>
         </n-button>
@@ -32,7 +32,7 @@
       </div>
       
       <div v-else-if="matches.length === 0" class="empty-state">
-         <n-empty description="No active matches found. Wait for the draw!" />
+         <n-empty :description="t('profile.no_matches')" />
       </div>
 
       <div v-else class="matches-grid">
@@ -47,12 +47,13 @@
     
     <n-divider />
     
-    <n-button type="error" ghost @click="logout">Logout</n-button>
+    <n-button type="error" ghost @click="logout">{{ t('nav.logout') }}</n-button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
 import { useMessage, NCard, NStatistic, NInput, NInputGroup, NButton, NDivider, NSpin, NEmpty, NIcon } from 'naive-ui'
@@ -60,6 +61,7 @@ import { Refresh } from '@vicons/ionicons5'
 import { getMyMatches, type MatchResponse } from '../api/matches'
 import PlayerMatchCard from '../components/PlayerMatchCard.vue'
 
+const { t } = useI18n()
 const auth = useAuthStore()
 const router = useRouter()
 const message = useMessage()
@@ -133,15 +135,15 @@ const handleClaim = async () => {
     
     if (res.ok) {
       const data = await res.json()
-      message.success(`Success! You are ${data.in_game_name}`)
+      message.success(t('profile.checkin_success'))
       boundPlayerName.value = data.in_game_name
       await fetchMatches()
     } else {
       const err = await res.json()
-      message.error(err.detail || 'Claim failed')
+      message.error(err.detail || t('profile.checkin_fail'))
     }
   } catch (e) {
-    message.error('Network error')
+    message.error(t('profile.checkin_fail'))
   } finally {
     claiming.value = false
   }

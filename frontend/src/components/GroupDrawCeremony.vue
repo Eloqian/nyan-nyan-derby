@@ -28,8 +28,8 @@
     <n-divider />
 
     <div v-if="statusText" class="status-indicator">
-       <n-tag :type="statusType" size="large" round>
-         Status: {{ statusText }}
+         <n-tag :type="statusType" size="large" round>
+          {{ t('ceremony.label_status') }}: {{ statusText }}
        </n-tag>
     </div>
 
@@ -43,8 +43,8 @@
             <div class="gate-number" :style="{ backgroundColor: getGateColor(pIdx + 1) }">{{ pIdx + 1 }}</div>
             <div class="gate-info">
                <div class="player-name">{{ player.in_game_name || '---' }}</div>
-               <div v-if="player.seed_level === 1" class="seed-badge">👑 Seed</div>
-               <div v-if="player.is_npc" class="npc-badge">🤖 NPC</div>
+               <div v-if="player.seed_level === 1" class="seed-badge">👑 {{ t('ceremony.badge_seed') }}</div>
+               <div v-if="player.is_npc" class="npc-badge">🤖 {{ t('ceremony.badge_npc') }}</div>
             </div>
           </div>
         </div>
@@ -91,7 +91,7 @@ const statusType = computed(() => {
 const groupNames = ref<string[]>([])
 // Initialize with A-N (14 groups) as default placeholders
 for (let i = 0; i < 14; i++) {
-  groupNames.value.push(`Group ${String.fromCharCode(65 + i)}`)
+  groupNames.value.push(`${t('ceremony.group_prefix')} ${String.fromCharCode(65 + i)}`)
 }
 
 // Temporary "Shuffling" state

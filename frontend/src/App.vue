@@ -11,7 +11,7 @@ import type { GlobalThemeOverrides } from 'naive-ui'
 import { Language, Person } from '@vicons/ionicons5'
 import { useAuthStore } from './stores/auth'
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 
@@ -64,8 +64,8 @@ function handleLanguageSelect(key: string) {
 
 // Profile Menu
 const profileOptions = [
-  { label: 'Trainer Card', key: 'profile' },
-  { label: 'Logout', key: 'logout' }
+  { label: () => t('nav.profile'), key: 'profile' },
+  { label: () => t('nav.logout'), key: 'logout' }
 ]
 
 function handleProfileSelect(key: string) {
@@ -87,19 +87,26 @@ function handleProfileSelect(key: string) {
           <n-layout-header bordered style="padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; background-color: #ffffff;">
             <div class="logo" @click="router.push('/')" style="cursor: pointer; display: flex; align-items: center; gap: 10px;">
               <span style="font-size: 24px; color: #7CB342;">🐎</span>
-              <span style="font-weight: 900; font-size: 18px; color: #333; letter-spacing: 1px;">MEOW CUP</span>
+              <span style="font-weight: 900; font-size: 18px; color: #333; letter-spacing: 1px;">{{ t('nav.title') }}</span>
             </div>
             
             <div style="display: flex; gap: 12px; align-items: center;">
                <n-button quaternary @click="router.push('/')">
-                 Home
+                 {{ t('nav.home') }}
                </n-button>
                <n-button type="error" ghost @click="router.push('/live')">
-                 🔴 Live Center
+                 {{ t('nav.live') }}
                </n-button>
-               <n-button quaternary @click="router.push('/referee')">
-                 Ref Dashboard
-               </n-button>
+               
+               <!-- Admin-only buttons -->
+               <template v-if="auth.user?.is_admin">
+                 <n-button quaternary @click="router.push('/referee')">
+                   {{ t('nav.referee') }}
+                 </n-button>
+                 <n-button quaternary @click="router.push('/admin')">
+                   {{ t('nav.admin') }}
+                 </n-button>
+               </template>
 
                <n-divider vertical />
 
@@ -116,7 +123,7 @@ function handleProfileSelect(key: string) {
                </template>
                <template v-else>
                   <n-button type="primary" secondary @click="router.push('/login')">
-                    Login / Register
+                    {{ t('nav.login') }}
                   </n-button>
                </template>
                

@@ -21,6 +21,13 @@ export const createTournament = async (token: string, data: any) => {
   return response.json()
 }
 
+export const listTournaments = async (): Promise<Tournament[]> => {
+  const response = await fetch(`${API_BASE_URL}/tournaments/`)
+  if (!response.ok) return []
+  return response.json()
+}
+
+
 export const getCurrentTournament = async (): Promise<Tournament | null> => {
   const response = await fetch(`${API_BASE_URL}/tournaments/current`)
   if (!response.ok) return null

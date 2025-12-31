@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { 
   NTabs, NTabPane, NMenu, NDataTable, NCard, NTag, NButton, NModal, NCheckbox, NAlert, NDivider, NSpin, NEmpty, NSpace, NText, useMessage, NInputGroup, NInput
 } from 'naive-ui'
@@ -11,6 +13,8 @@ import { updateRoomNumber } from '../api/matches'
 const API_BASE_URL = '/api/v1'
 const auth = useAuthStore()
 const message = useMessage()
+const route = useRoute()
+const { t } = useI18n()
 
 // Data State
 const stages = ref<any[]>([])
@@ -22,7 +26,15 @@ const loading = ref(false)
 // Init
 onMounted(async () => {
    try {
-     const res = await fetch(`${API_BASE_URL}/stages/`)
+     // Check if tournamentId is provided in route
+     const tournamentId = route.params.tournamentId as string | undefined
+     
+     let url = `${API_BASE_URL}/stages/`
+     if (tournamentId) {
+       url += `?tournament_id=${tournamentId}`
+     }
+     
+     const res = await fetch(url)
      if (res.ok) {
         stages.value = await res.json()
         if (stages.value.length > 0) {
@@ -35,6 +47,7 @@ onMounted(async () => {
    }
 })
 
+
 // Stage Logic
 const loadStageData = async (stageId: string) => {
    loading.value = true
@@ -44,7 +57,7 @@ const loadStageData = async (stageId: string) => {
          activeGroupId.value = activeGroupData.value[0].id
       }
    } catch (e) {
-      message.error("Failed to load stage data")
+      message.error(t('live.load_fail'))
    } finally {
       loading.value = false
    }
@@ -67,12 +80,12 @@ const currentGroup = computed(() => {
 })
 
 // Table Config
-const standingsColumns: DataTableColumns = [
-   { title: 'Rank', key: 'rank', width: 60 },
-   { title: 'Player', key: 'player_name' },
-   { title: 'Pts', key: 'total_points', sorter: 'default' },
-   { title: 'Wins', key: 'wins' }
-]
+const standingsColumns = computed<DataTableColumns>(() => [
+   { title: t('live.rank'), key: 'rank', width: 60 },
+   { title: t('live.player'), key: 'player_name' },
+   { title: t('live.pts'), key: 'total_points', sorter: 'default' },
+   { title: t('live.wins'), key: 'wins' }
+])
 
 // Match Helpers
 const getStatusType = (status: string) => {
@@ -170,11 +183,11 @@ const submitResult = async () => {
    
    try {
       await submitMatchResult(auth.token!, editingMatch.value.id, rankings)
-      message.success("Result Saved!")
+      message.success(t('live.result_saved'))
       showModal.value = false
       await loadStageData(activeStageId.value)
    } catch (e) {
-      message.error("Failed to save")
+      message.error(t('live.save_fail'))
    } finally {
       submitting.value = false
    }
@@ -197,11 +210,11 @@ const saveRoomNumber = async () => {
    updatingRoom.value = true
    try {
       await updateRoomNumber(auth.token, editingRoomMatch.value.id, roomInput.value)
-      message.success("Room number updated")
+      message.success(t('live.room_updated'))
       showRoomModal.value = false
       await loadStageData(activeStageId.value)
    } catch (e) {
-      message.error("Failed to update room")
+      message.error(t('live.save_fail'))
    } finally {
       updatingRoom.value = false
    }
@@ -211,8 +224,8 @@ const saveRoomNumber = async () => {
 <template>
   <div class="live-container">
     <div class="header-section">
-      <h2>🔴 Live Tournament Center</h2>
-      <n-text depth="3">Real-time updates & results</n-text>
+      <h2>{{ t('live.title') }}</h2>
+      <n-text depth="3">{{ t('live.subtitle') }}</n-text>
     </div>
 
     <n-tabs type="card" v-model:value="activeStageId" @update:value="loadStageData">
@@ -237,7 +250,7 @@ const saveRoomNumber = async () => {
       <div class="group-detail">
         <div v-if="currentGroup" class="detail-wrapper">
           <div class="group-header">
-            <h3>{{ currentGroup.name }} Standings</h3>
+            <h3>{{ currentGroup.name }} {{ t('live.standings') }}</h3>
           </div>
           
           <!-- Standings Table -->
@@ -251,7 +264,7 @@ const saveRoomNumber = async () => {
           <n-divider />
 
           <!-- Match List -->
-          <h3>Matches</h3>
+          <h3>{{ t('live.matches') }}</h3>
           <div class="matches-list">
              <div v-for="match in currentGroup.matches" :key="match.id" class="match-item">
                <n-card size="small" :bordered="true">
@@ -273,11 +286,11 @@ const saveRoomNumber = async () => {
                              @click="openRoomModal(match)"
                           >
                              <template v-if="match.room_number">🏠 {{ match.room_number }}</template>
-                             <template v-else>🏠 Set Room</template>
+                             <template v-else>{{ t('live.set_room') }}</template>
                           </n-button>
 
                           <n-button size="small" type="primary" secondary @click="openResultModal(match)">
-                            📝 Result
+                            {{ t('live.result') }}
                           </n-button>
                        </n-space>
                     </div>
@@ -304,21 +317,19 @@ const saveRoomNumber = async () => {
       </div>
     </div>
     
-    <n-empty v-else description="No groups data available" />
+    <n-empty v-else :description="t('live.no_data')" />
 
     <!-- Result Input Modal -->
-    <n-modal v-model:show="showModal" preset="card" title="Update Match Result" style="width: 600px">
+    <n-modal v-model:show="showModal" preset="card" :title="t('live.update_result')" style="width: 600px">
        <div v-if="editingMatch">
           <n-alert type="info" style="margin-bottom: 16px">
-             Tick the rank obtained by each player. <br>
-             Rule: 1st(9pts), 2nd(5pts), 3rd(3pts), 4th(2pts), 5th(1pts). <br>
-             Each player has 3 horses. Total 5 ranks to assign.
+             <div v-html="t('live.instructions')"></div>
           </n-alert>
 
           <table class="matrix-table">
              <thead>
                 <tr>
-                   <th>Player</th>
+                   <th>{{ t('live.player') }}</th>
                    <th v-for="r in 5" :key="r">{{ r }}{{ getOrdinal(r) }}</th>
                 </tr>
              </thead>
@@ -327,7 +338,7 @@ const saveRoomNumber = async () => {
                    <td class="player-cell">
                       <strong>{{ p.player.name }}</strong>
                       <div class="live-score">
-                         Current: {{ getProjectedScore(p.player.id) }} pts
+                         {{ t('live.current_score', { score: getProjectedScore(p.player.id) }) }}
                       </div>
                    </td>
                    <td v-for="r in 5" :key="r" class="check-cell">
@@ -342,19 +353,19 @@ const saveRoomNumber = async () => {
           </table>
           
           <div class="modal-footer" style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
-             <n-button @click="showModal = false">Cancel</n-button>
+             <n-button @click="showModal = false">{{ t('admin.cancel') }}</n-button>
              <n-button type="primary" @click="submitResult" :loading="submitting" :disabled="!isValidResult">
-                Confirm & Save
+                {{ t('live.confirm_save') }}
              </n-button>
           </div>
        </div>
     </n-modal>
 
     <!-- Room Number Modal -->
-    <n-modal v-model:show="showRoomModal" preset="card" title="Update Room Number" style="width: 400px">
+    <n-modal v-model:show="showRoomModal" preset="card" :title="t('live.update_room')" style="width: 400px">
        <n-input-group>
-          <n-input v-model:value="roomInput" placeholder="Enter Room ID" autofocus />
-          <n-button type="primary" @click="saveRoomNumber" :loading="updatingRoom">Save</n-button>
+          <n-input v-model:value="roomInput" :placeholder="t('live.enter_room')" autofocus />
+          <n-button type="primary" @click="saveRoomNumber" :loading="updatingRoom">{{ t('live.save') }}</n-button>
        </n-input-group>
     </n-modal>
 

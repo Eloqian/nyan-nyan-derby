@@ -50,6 +50,23 @@ async def create_tournament(
 
     return tourney
 
+@router.get("/", response_model=List[Tournament])
+async def list_tournaments(
+    session: AsyncSession = Depends(get_session),
+    status: Optional[TournamentStatus] = None
+):
+    """
+    List all tournaments, optionally filtered by status.
+    Ordered by created_at descending (newest first).
+    """
+    if status:
+        stmt = select(Tournament).where(Tournament.status == status).order_by(Tournament.created_at.desc())
+    else:
+        stmt = select(Tournament).order_by(Tournament.created_at.desc())
+    result = await session.exec(stmt)
+    return result.all()
+
+
 @router.get("/current", response_model=Optional[Tournament])
 async def get_current_tournament(session: AsyncSession = Depends(get_session)):
     """

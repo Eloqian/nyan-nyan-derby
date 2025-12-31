@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import GroupDrawCeremony from '../components/GroupDrawCeremony.vue'
-import RefereeDashboard from '../views/RefereeDashboard.vue'
 import Login from '../views/Login.vue'
 import Profile from '../views/Profile.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
@@ -14,6 +13,11 @@ const routes = [
     path: '/',
     name: 'Home',
     component: Home
+  },
+  {
+    path: '/tournament/:tournamentId',
+    name: 'TournamentDetail',
+    component: LiveTournament
   },
   {
     path: '/live',
@@ -35,17 +39,12 @@ const routes = [
     path: '/admin',
     name: 'AdminDashboard',
     component: AdminDashboard,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
     path: '/ceremony',
     name: 'GroupDrawCeremony',
     component: GroupDrawCeremony
-  },
-  {
-    path: '/referee/:stageId?', // Optional stageId param
-    name: 'RefereeDashboard',
-    component: RefereeDashboard
   }
 ]
 
@@ -56,14 +55,17 @@ const router = createRouter({
 
 router.beforeEach(async (to, _, next) => {
   const auth = useAuthStore()
-  
+
   // Attempt to restore user session if token exists but user is null
   if (auth.token && !auth.user) {
-     await auth.fetchUser()
+    await auth.fetchUser()
   }
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     next('/login')
+  } else if (to.meta.requiresAdmin && !auth.user?.is_admin) {
+    // Redirect non-admin users trying to access admin pages
+    next('/')
   } else {
     next()
   }

@@ -6,166 +6,164 @@
        <n-spin size="large" />
     </div>
 
-    <!-- No Tournament Setup -->
-    <div v-else-if="!tournament" class="setup-placeholder">
-       <n-empty description="No Tournament Active" size="large">
+    <!-- Tournament List -->
+    <div v-else class="tournament-list">
+      <h1 class="page-title">{{ t('home.all_tournaments') }}</h1>
+      
+      <div v-if="tournaments.length === 0" class="empty-state">
+        <n-empty :description="t('home.no_tournaments')">
           <template #extra>
-             <div class="admin-hint">
-                Admin: Go to Dashboard to create one.
-             </div>
+            <div class="admin-hint" v-if="auth.user?.is_admin">
+              {{ t('home.admin_create_hint') }}
+              <n-button type="primary" @click="$router.push('/admin')">
+                {{ t('home.go_to_admin') }}
+              </n-button>
+            </div>
           </template>
-       </n-empty>
-    </div>
+        </n-empty>
+      </div>
 
-    <div v-else class="landing-content">
-       <!-- Hero Section -->
-       <div class="hero-section" :class="tournament.status">
-          <div class="hero-overlay">
-             <h1 class="title">{{ tournament.name }}</h1>
-             <div class="subtitle">
-                <span v-if="tournament.status === 'setup'">🚀 COMING SOON</span>
-                <span v-else-if="tournament.status === 'active'">🔥 LIVE NOW</span>
-                <span v-else>🏁 COMPLETED</span>
-             </div>
-             
-             <!-- Countdown (Mocked for demo) -->
-             <div v-if="tournament.status === 'setup'" class="countdown">
-                <div class="time-box">
-                   <span class="num">02</span>
-                   <span class="label">Days</span>
+      <!-- Group tournaments by status -->
+      <div v-else>
+        <!-- Active Tournaments -->
+        <section v-if="activeTournaments.length > 0" class="tournament-section">
+          <h2 class="section-title">🔥 {{ t('home.active_tournaments') }}</h2>
+          <div class="tournament-grid">
+            <div v-for="tournament in activeTournaments" :key="tournament.id" 
+                 class="tournament-card active" 
+                 @click="goToTournament(tournament.id)">
+              <div class="card-header">
+                <h3 class="tournament-name">{{ tournament.name }}</h3>
+                <n-tag type="success" size="small">{{ t('home.live_now') }}</n-tag>
+              </div>
+              <div class="card-body">
+                <div class="info-row">
+                  <span class="label">{{ t('home.created') }}:</span>
+                  <span class="value">{{ formatDate(tournament.created_at) }}</span>
                 </div>
-                <div class="time-box">
-                   <span class="num">14</span>
-                   <span class="label">Hours</span>
+                <div class="info-row">
+                  <span class="label">{{ t('home.status') }}:</span>
+                  <span class="value status-active">{{ t('home.status_active') }}</span>
                 </div>
-             </div>
-
-             <!-- Action Buttons -->
-             <div class="hero-actions">
-                <n-button v-if="tournament.status === 'active'" type="warning" size="large" round @click="$router.push('/live')">
-                   📺 Watch Live
+              </div>
+              <div class="card-footer">
+                <n-button type="primary" secondary>
+                  {{ t('home.view_details') }} →
                 </n-button>
-                
-                <n-button v-if="!isLoggedIn" type="primary" size="large" round @click="$router.push('/login')">
-                   👉 Login / Register
-                </n-button>
-                <n-button v-else type="primary" size="large" round @click="$router.push('/profile')">
-                   ✅ Check-in / My Profile
-                </n-button>
-             </div>
+              </div>
+            </div>
           </div>
-       </div>
+        </section>
 
-       <!-- Info Grid -->
-       <n-grid x-gap="24" y-gap="24" cols="1 s:3" responsive="screen" class="info-grid">
-          
-          <!-- Rules Card -->
-          <n-grid-item>
-             <n-card title="📜 Rules" class="info-card">
-                <ul class="rule-list">
-                   <li><strong>Audition:</strong> Top 4 advance per group.</li>
-                   <li><strong>Group Stage:</strong> Strategic points battle.</li>
-                   <li><strong>Elimination:</strong> Double elimination bracket.</li>
-                   <li><strong>Scoring:</strong> 1st(9), 2nd(5), 3rd(3)...</li>
-                </ul>
-             </n-card>
-          </n-grid-item>
-
-          <!-- Prizes Card -->
-          <n-grid-item>
-             <n-card title="🏆 Prizes" class="info-card">
-                <div class="prize-list">
-                   <div class="prize-item gold">
-                      <span class="icon">🥇</span>
-                      <span class="amount">¥200</span>
-                   </div>
-                   <div class="prize-item silver">
-                      <span class="icon">🥈</span>
-                      <span class="amount">¥160</span>
-                   </div>
-                   <div class="prize-item bronze">
-                      <span class="icon">🥉</span>
-                      <span class="amount">¥120</span>
-                   </div>
+        <!-- Setup Tournaments -->
+        <section v-if="setupTournaments.length > 0" class="tournament-section">
+          <h2 class="section-title">🚀 {{ t('home.upcoming_tournaments') }}</h2>
+          <div class="tournament-grid">
+            <div v-for="tournament in setupTournaments" :key="tournament.id" 
+                 class="tournament-card setup" 
+                 @click="goToTournament(tournament.id)">
+              <div class="card-header">
+                <h3 class="tournament-name">{{ tournament.name }}</h3>
+                <n-tag type="warning" size="small">{{ t('home.coming_soon') }}</n-tag>
+              </div>
+              <div class="card-body">
+                <div class="info-row">
+                  <span class="label">{{ t('home.created') }}:</span>
+                  <span class="value">{{ formatDate(tournament.created_at) }}</span>
                 </div>
-             </n-card>
-          </n-grid-item>
-
-          <!-- Stats Card -->
-          <n-grid-item>
-             <n-card title="📊 Stats" class="info-card">
-                <n-statistic label="Registered Trainers" :value="players.length" />
-                <n-statistic label="Checked-in" :value="checkedInCount" style="margin-top: 12px">
-                   <template #suffix>/ 96</template>
-                </n-statistic>
-             </n-card>
-          </n-grid-item>
-       </n-grid>
-       
-       <!-- Player Wall (Check-in Status) -->
-       <div class="player-wall-section">
-          <h2>Trainer Wall (Checked-in)</h2>
-          <div class="wall-grid">
-             <div v-for="p in checkedInPlayers" :key="p.id" class="player-badge">
-                <n-avatar round size="medium" :style="{ backgroundColor: stringToColor(p.in_game_name) }">
-                   {{ p.in_game_name[0] }}
-                </n-avatar>
-                <span class="name">{{ p.in_game_name }}</span>
-             </div>
-             <!-- Placeholders -->
-             <div v-for="i in Math.max(0, 10 - checkedInPlayers.length)" :key="i" class="player-badge empty">
-                <n-avatar round size="medium" color="#eee">?</n-avatar>
-                <span class="name">...</span>
-             </div>
+                <div class="info-row">
+                  <span class="label">{{ t('home.status') }}:</span>
+                  <span class="value status-setup">{{ t('home.status_setup') }}</span>
+                </div>
+              </div>
+              <div class="card-footer">
+                <n-button type="warning" secondary>
+                  {{ t('home.view_details') }} →
+                </n-button>
+              </div>
+            </div>
           </div>
-       </div>
+        </section>
 
+        <!-- Completed Tournaments -->
+        <section v-if="completedTournaments.length > 0" class="tournament-section">
+         <h2 class="section-title">🏁 {{ t('home.past_tournaments') }}</h2>
+          <div class="tournament-grid">
+            <div v-for="tournament in completedTournaments" :key="tournament.id" 
+                 class="tournament-card completed" 
+                 @click="goToTournament(tournament.id)">
+              <div class="card-header">
+                <h3 class="tournament-name">{{ tournament.name }}</h3>
+                <n-tag type="default" size="small">{{ t('home.completed') }}</n-tag>
+              </div>
+              <div class="card-body">
+                <div class="info-row">
+                  <span class="label">{{ t('home.created') }}:</span>
+                  <span class="value">{{ formatDate(tournament.created_at) }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="label">{{ t('home.status') }}:</span>
+                  <span class="value status-completed">{{ t('home.status_completed') }}</span>
+                </div>
+              </div>
+              <div class="card-footer">
+                <n-button type="default" secondary>
+                  {{ t('home.view_details') }} →
+                </n-button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
-import { getCurrentTournament, type Tournament } from '../api/tournaments'
-import { NSpin, NEmpty, NButton, NGrid, NGridItem, NCard, NStatistic, NAvatar } from 'naive-ui'
+import { listTournaments, type Tournament } from '../api/tournaments'
+import { NSpin, NEmpty, NButton, NTag } from 'naive-ui'
 
+const { t } = useI18n()
+const router = useRouter()
 const auth = useAuthStore()
+
 const loading = ref(true)
-const tournament = ref<Tournament | null>(null)
-const players = ref<any[]>([])
+const tournaments = ref<Tournament[]>([])
 
-const isLoggedIn = computed(() => auth.isAuthenticated)
-
-const checkedInPlayers = computed(() => {
-   return players.value.filter(p => p.user_id !== null)
+const activeTournaments = computed(() => {
+  return tournaments.value.filter(t => t.status === 'active')
 })
 
-const checkedInCount = computed(() => checkedInPlayers.value.length)
+const setupTournaments = computed(() => {
+  return tournaments.value.filter(t => t.status === 'setup')
+})
+
+const completedTournaments = computed(() => {
+  return tournaments.value.filter(t => t.status === 'completed')
+})
 
 onMounted(async () => {
-   try {
-      const [t, pRes] = await Promise.all([
-         getCurrentTournament(),
-         fetch('/api/v1/players/').then(r => r.json())
-      ])
-      tournament.value = t
-      players.value = pRes
-   } catch (e) {
-      console.error(e)
-   } finally {
-      loading.value = false
-   }
+  try {
+    tournaments.value = await listTournaments()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    loading.value = false
+  }
 })
 
-// Helpers
-const stringToColor = (str: string) => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-  return '#' + "00000".substring(0, 6 - c.length) + c;
+const formatDate = (dateStr: string) => {
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+}
+
+const goToTournament = (tournamentId: string) => {
+  // Navigate to tournament detail page (LiveTournament with tournament ID)
+  router.push(`/tournament/${tournamentId}`)
 }
 
 </script>
@@ -173,139 +171,152 @@ const stringToColor = (str: string) => {
 <style scoped>
 .home-container {
   min-height: 80vh;
-}
-.loading-screen, .setup-placeholder {
-   display: flex;
-   justify-content: center;
-   align-items: center;
-   height: 60vh;
+  padding: 24px;
 }
 
-.hero-section {
-   position: relative;
-   background: linear-gradient(135deg, #7CB342 0%, #558B2F 100%);
-   color: white;
-   padding: 60px 24px;
-   border-radius: 0 0 24px 24px;
-   text-align: center;
-   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-   overflow: hidden;
-}
-.hero-section.setup {
-   background: linear-gradient(135deg, #42A5F5 0%, #1565C0 100%);
-}
-.hero-section.completed {
-   background: linear-gradient(135deg, #FFB74D 0%, #EF6C00 100%);
+.loading-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 60vh;
 }
 
-.title {
-   font-size: 3.5rem;
-   margin: 0;
-   font-weight: 900;
-   letter-spacing: -1px;
-   text-shadow: 2px 2px 0px rgba(0,0,0,0.1);
-}
-.subtitle {
-   font-size: 1.5rem;
-   margin-top: 10px;
-   font-weight: bold;
-   opacity: 0.9;
-   letter-spacing: 2px;
+.page-title {
+  font-size: 2.5rem;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 40px;
+  background: linear-gradient(135deg, #7CB342 0%, #558B2F 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.countdown {
-   display: flex;
-   justify-content: center;
-   gap: 20px;
-   margin: 30px 0;
-}
-.time-box {
-   background: rgba(255,255,255,0.2);
-   padding: 10px 20px;
-   border-radius: 12px;
-   backdrop-filter: blur(5px);
-}
-.time-box .num {
-   display: block;
-   font-size: 2.5rem;
-   font-weight: bold;
-}
-.time-box .label {
-   font-size: 0.9rem;
-   text-transform: uppercase;
-   opacity: 0.8;
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 50vh;
 }
 
-.hero-actions {
-   margin-top: 30px;
-   display: flex;
-   gap: 16px;
-   justify-content: center;
+.admin-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  color: #666;
 }
 
-.info-grid {
-   max-width: 1200px;
-   margin: -30px auto 0;
-   padding: 0 24px;
-   position: relative;
-   z-index: 2;
-}
-.info-card {
-   height: 100%;
-   box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-   border-radius: 16px;
+.tournament-list {
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.rule-list {
-   padding-left: 20px;
-   margin: 0;
-   line-height: 1.6;
+.tournament-section {
+  margin-bottom: 48px;
 }
 
-.prize-list {
-   display: flex;
-   flex-direction: column;
-   gap: 12px;
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #333;
 }
-.prize-item {
-   display: flex;
-   align-items: center;
-   gap: 12px;
-   font-size: 1.1rem;
-   font-weight: bold;
-}
-.prize-item.gold { color: #FFD700; }
-.prize-item.silver { color: #9E9E9E; }
-.prize-item.bronze { color: #A1887F; }
 
-.player-wall-section {
-   max-width: 1200px;
-   margin: 40px auto;
-   padding: 0 24px;
-   text-align: center;
+.tournament-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
 }
-.wall-grid {
-   display: flex;
-   flex-wrap: wrap;
-   gap: 16px;
-   justify-content: center;
-   margin-top: 20px;
+
+.tournament-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: 2px solid transparent;
 }
-.player-badge {
-   display: flex;
-   flex-direction: column;
-   align-items: center;
-   width: 80px;
-   gap: 8px;
+
+.tournament-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
 }
-.player-badge.empty {
-   opacity: 0.3;
+
+.tournament-card.active {
+  border-color: #7CB342;
 }
-.name {
-   font-size: 0.85rem;
-   white-space: nowrap;
-   overflow: hidden;
-   text-overflow: ellipsis;
-   max-width: 100%;
+
+.tournament-card.active:hover {
+  box-shadow: 0 8px 24px rgba(124, 179, 66, 0.3);
+}
+
+.tournament-card.setup {
+  border-color: #FFCA28;
+}
+
+.tournament-card.setup:hover {
+  box-shadow: 0 8px 24px rgba(255, 202, 40, 0.3);
+}
+
+.tournament-card.completed {
+  border-color: #E0E0E0;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.tournament-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  flex: 1;
+  color: #333;
+}
+
+.card-body {
+  margin-bottom: 16px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #F5F5F5;
+}
+
+.info-row .label {
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.info-row .value {
+  font-weight: 500;
+  color: #333;
+}
+
+.status-active {
+  color: #7CB342;
+  font-weight: 700;
+}
+
+.status-setup {
+  color: #FFCA28;
+  font-weight: 700;
+}
+
+.status-completed {
+  color: #9E9E9E;
+  font-weight: 700;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

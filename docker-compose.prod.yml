@@ -26,7 +26,7 @@ services:
     build:
       context: ./frontend
     ports:
-      - "10080:80"
+      - "8090:80"
     networks:
       - meow-net
     depends_on:

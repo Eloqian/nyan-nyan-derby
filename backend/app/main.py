@@ -27,6 +27,11 @@ app.include_router(matches.router, prefix="/api/v1/matches", tags=["Matches"])
 app.include_router(stages.router, prefix="/api/v1/stages", tags=["Stages"])
 app.include_router(tournaments.router, prefix="/api/v1/tournaments", tags=["Tournaments"])
 
+@app.on_event("startup")
+async def on_startup():
+    from app.core.create_admin import create_default_admin
+    await create_default_admin()
+
 @app.get("/")
 async def root():
     return {"message": "Welcome to Meow Meow Cup Tournament System"}

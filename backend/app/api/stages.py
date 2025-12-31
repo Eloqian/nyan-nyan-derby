@@ -40,10 +40,21 @@ class GroupView(BaseModel):
 # ---------------------
 
 @router.get("/", response_model=List[Stage])
-async def list_stages(session: AsyncSession = Depends(get_session)):
-    stmt = select(Stage).order_by(Stage.sequence_order)
+async def list_stages(
+    session: AsyncSession = Depends(get_session),
+    tournament_id: Optional[UUID] = None
+):
+    """
+    List all stages, optionally filtered by tournament_id.
+    Ordered by sequence_order.
+    """
+    if tournament_id:
+        stmt = select(Stage).where(Stage.tournament_id == tournament_id).order_by(Stage.sequence_order)
+    else:
+        stmt = select(Stage).order_by(Stage.sequence_order)
     result = await session.exec(stmt)
     return result.all()
+
 
 @router.get("/{stage_id}/standings", response_model=StageStandingsResponse)
 async def get_stage_standings(

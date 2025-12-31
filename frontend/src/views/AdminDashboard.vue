@@ -1,18 +1,18 @@
 <template>
   <div class="admin-container">
-    <n-card title="Admin Dashboard">
+    <n-card :title="t('admin.dashboard_title')">
       <n-tabs type="line">
         
-        <n-tab-pane name="control" tab="⚙️ Tournament Control">
+        <n-tab-pane name="control" :tab="t('admin.tournament_control')">
            <div v-if="loadingTourney" class="loading-state">
               <n-spin size="medium" />
            </div>
            
            <div v-else-if="!tournament">
-              <n-empty description="No Active Tournament">
+              <n-empty :description="t('admin.no_active_tournament')">
                  <template #extra>
                     <n-button type="primary" @click="showCreateModal = true">
-                       Create New Tournament
+                       {{ t('admin.create_new') }}
                     </n-button>
                  </template>
               </n-empty>
@@ -28,28 +28,28 @@
                  </div>
                  
                  <div class="actions">
-                    <n-text depth="3">Flow Control:</n-text>
+                    <n-text depth="3">{{ t('admin.flow_control') }}</n-text>
                     <n-button-group>
                        <n-button 
                           @click="updateStatus('setup')" 
                           :type="tournament.status === 'setup' ? 'primary' : 'default'"
                           :disabled="tournament.status === 'setup'"
                        >
-                          Setup
+                          {{ t('admin.setup') }}
                        </n-button>
                        <n-button 
                           @click="updateStatus('active')" 
                           :type="tournament.status === 'active' ? 'primary' : 'default'"
                           :disabled="tournament.status === 'active'"
                        >
-                          Start / Active
+                          {{ t('admin.start_active') }}
                        </n-button>
                        <n-button 
                           @click="updateStatus('completed')" 
                           :type="tournament.status === 'completed' ? 'primary' : 'default'"
                           :disabled="tournament.status === 'completed'"
                        >
-                          End
+                          {{ t('admin.end') }}
                        </n-button>
                     </n-button-group>
                  </div>
@@ -57,7 +57,7 @@
               
               <n-divider />
               
-              <h3>📅 Stage Flow</h3>
+              <h3>{{ t('admin.stage_flow') }}</h3>
               <div class="stages-list">
                  <n-card v-for="stage in stages" :key="stage.id" size="small" style="margin-bottom: 12px">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -74,7 +74,7 @@
                              type="info"
                              @click="handleSettle(stage.id)"
                           >
-                             Settle & Next Draw ➡️
+                             {{ t('admin.settle_next') }}
                           </n-button>
                        </n-space>
                     </div>
@@ -83,20 +83,20 @@
 
               <n-divider />
               
-              <n-alert title="Quick Actions" type="info">
+              <n-alert :title="t('admin.quick_actions')" type="info">
                  <n-space>
                     <n-button secondary @click="$router.push('/ceremony')">
-                       Go to Draw Ceremony (Manual)
+                       {{ t('admin.go_draw') }}
                     </n-button>
                     <n-button secondary @click="$router.push('/live')">
-                       Go to Live Center
+                       {{ t('admin.go_live') }}
                     </n-button>
                  </n-space>
               </n-alert>
            </div>
         </n-tab-pane>
 
-        <n-tab-pane name="roster" tab="👥 Roster Management">
+        <n-tab-pane name="roster" :tab="t('admin.roster_management')">
           <n-upload
             directory-dnd
             :custom-request="customRequest"
@@ -109,10 +109,10 @@
                 </n-icon>
               </div>
               <n-text style="font-size: 16px">
-                Click or drag CSV file to this area to upload
+                {{ t('admin.upload_instruction') }}
               </n-text>
               <n-p depth="3" style="margin: 8px 0 0 0">
-                Format: in_game_name, qq_id, is_npc (true/false)
+                {{ t('admin.upload_format') }}
               </n-p>
             </n-upload-dragger>
           </n-upload>
@@ -121,17 +121,17 @@
     </n-card>
 
     <!-- Create Modal -->
-    <n-modal v-model:show="showCreateModal" preset="card" title="Create Tournament" style="width: 500px">
+    <n-modal v-model:show="showCreateModal" preset="card" :title="t('admin.create_modal_title')" style="width: 500px">
        <n-form>
-          <n-form-item label="Tournament Name">
+          <n-form-item :label="t('admin.tournament_name')">
              <n-input v-model:value="newTourneyName" placeholder="e.g. Meow Cup 2025" />
           </n-form-item>
           <!-- Additional config could go here -->
        </n-form>
        <template #footer>
           <div style="display: flex; justify-content: flex-end; gap: 12px;">
-             <n-button @click="showCreateModal = false">Cancel</n-button>
-             <n-button type="primary" @click="handleCreate" :disabled="!newTourneyName" :loading="creating">Create</n-button>
+             <n-button @click="showCreateModal = false">{{ t('admin.cancel') }}</n-button>
+             <n-button type="primary" @click="handleCreate" :disabled="!newTourneyName" :loading="creating">{{ t('admin.create') }}</n-button>
           </div>
        </template>
     </n-modal>
@@ -141,6 +141,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { 
   useMessage, NCard, NTabs, NTabPane, NUpload, NUploadDragger, NIcon, NText, NP, NEmpty, NButton, NTag, NButtonGroup, NDivider, NAlert, NSpace, NModal, NForm, NFormItem, NInput, NSpin
 } from 'naive-ui'
@@ -152,6 +153,7 @@ import { getCurrentTournament, createTournament, updateTournament, type Tourname
 const router = useRouter()
 const message = useMessage()
 const auth = useAuthStore()
+const { t } = useI18n()
 
 // State
 const tournament = ref<Tournament | null>(null)
@@ -201,13 +203,13 @@ const handleSettle = async (stageId: string) => {
       
       const data = await res.json()
       if (data.next_stage_id) {
-         message.success(`Stage Complete! Proceeding to ${data.next_stage_name}`)
+         message.success(t('admin.stage_complete', { stage: data.next_stage_name }))
          router.push(`/ceremony?stageId=${data.next_stage_id}`)
       } else {
-         message.info("Tournament Complete!")
+         message.info(t('admin.tournament_complete'))
       }
    } catch (e) {
-      message.error("Failed to settle stage")
+      message.error(t('admin.failed_settle'))
    }
 }
 
@@ -234,11 +236,11 @@ const handleCreate = async () => {
          ]
       }
       await createTournament(auth.token!, payload)
-      message.success("Tournament Created!")
+      message.success(t('admin.tournament_created'))
       showCreateModal.value = false
       await fetchTournament()
    } catch (e) {
-      message.error("Failed to create")
+      message.error(t('admin.failed_create'))
    } finally {
       creating.value = false
    }
@@ -248,10 +250,10 @@ const updateStatus = async (status: string) => {
    if (!tournament.value) return
    try {
       await updateTournament(auth.token!, tournament.value.id, { status })
-      message.success(`Status updated to ${status}`)
+      message.success(t('admin.status_updated', { status }))
       await fetchTournament()
    } catch (e) {
-      message.error("Failed to update status")
+      message.error(t('admin.failed_update'))
    }
 }
 
@@ -270,14 +272,14 @@ const customRequest = async ({ file, onFinish, onError }: UploadCustomRequestOpt
 
     if (res.ok) {
       const data = await res.json()
-      message.success(data.message)
+      message.success(data.message || t('admin.upload_success'))
       onFinish()
     } else {
-      message.error('Upload failed')
+      message.error(t('admin.upload_fail'))
       onError()
     }
   } catch (e) {
-    message.error('Network error')
+    message.error(t('admin.upload_fail'))
     onError()
   }
 }
