@@ -29,20 +29,58 @@ async def seed_data():
         await session.refresh(tournament)
         print(f"Created Tournament: {tournament.id}")
 
-        # 2. Create Stage (Audition)
-        stage = Stage(
+        # 2. Create Stage 1 (Audition)
+        stage1 = Stage(
             tournament_id=tournament.id,
             name="Audition",
             stage_type=StageType.ROUND_ROBIN,
             sequence_order=1,
-            rules_config={"group_count": 14}
+            rules_config={
+                "group_count": 14,
+                "advancement": {"type": "top_n", "value": 4} # 6 into 4
+            }
         )
-        session.add(stage)
+        session.add(stage1)
         await session.commit()
-        await session.refresh(stage)
-        print(f"Created Stage: {stage.id}")
+        await session.refresh(stage1)
+        print(f"Created Stage 1 (Audition): {stage1.id}")
 
-        # 3. Create Players
+        # 3. Create Stage 2 (Group Stage Round 1)
+        stage2 = Stage(
+            tournament_id=tournament.id,
+            name="Group Stage Round 1",
+            stage_type=StageType.ROUND_ROBIN,
+            sequence_order=2,
+            rules_config={
+                "advancement": {"type": "top_n", "value": 4} # 6 into 4
+            }
+        )
+        session.add(stage2)
+        await session.commit()
+        print(f"Created Stage 2 (Group Stage R1): {stage2.id}")
+
+        # 4. Create Stage 3 (Group Stage Round 2)
+        stage3 = Stage(
+            tournament_id=tournament.id,
+            name="Group Stage Round 2",
+            stage_type=StageType.ROUND_ROBIN,
+            sequence_order=3,
+            rules_config={
+                "advancement": {
+                    "type": "position_map",
+                    "map": {
+                        "1": "winner_bracket",
+                        "2": "loser_bracket",
+                        "3": "loser_bracket"
+                    }
+                }
+            }
+        )
+        session.add(stage3)
+        await session.commit()
+        print(f"Created Stage 3 (Group Stage R2): {stage3.id}")
+
+        # 5. Create Players
         # Need 14 Seeds (seed_level=1)
         # Need ~82 Non-seeds (seed_level=0)
 

@@ -43,3 +43,50 @@ class ProgressionEngine:
             return (first_place_count - threshold) * 2
 
         return 0
+
+    @staticmethod
+    def determine_group_qualifiers(stage: Stage, group_standings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Determines which players qualify for the next stage based on group standings and stage rules.
+        
+        Args:
+            stage: The current stage object containing rules_config.
+            group_standings: List of dicts [{"player_id": ..., "rank": ...}, ...] sorted by rank.
+            
+        Returns:
+            List of dicts: [{"player_id": ..., "destination": ...}, ...]
+        """
+        rules = stage.rules_config or {}
+        advancement = rules.get("advancement", {})
+        
+        qualifiers = []
+        
+        if not advancement:
+            # Default fallback: maybe Top 50%? Or manual?
+            # For now return empty or all? Returning empty is safer to force config.
+            return []
+
+        rule_type = advancement.get("type")
+        
+        if rule_type == "top_n":
+            # Simple cut-off: Top N advance
+            count = advancement.get("value", 0)
+            for player in group_standings:
+                if player["rank"] <= count:
+                    qualifiers.append({
+                        "player_id": player["player_id"],
+                        "destination": "next_stage_main" # Generic destination
+                    })
+                    
+        elif rule_type == "position_map":
+            # Map specific rank to specific destination (e.g. 1->winner, 2->loser)
+            pos_map = advancement.get("map", {})
+            for player in group_standings:
+                rank_str = str(player["rank"])
+                if rank_str in pos_map:
+                    qualifiers.append({
+                        "player_id": player["player_id"],
+                        "destination": pos_map[rank_str]
+                    })
+        
+        return qualifiers

@@ -1,9 +1,12 @@
 from typing import List, Dict, Any, Optional
 import random
 from uuid import UUID
+from collections import defaultdict
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.models.tournament import Stage, Player, Tournament, StageType
+from app.models.tournament import Stage, Player, Tournament, StageType, Group, Match, Race, RaceResult
+from app.services.logic.progression import ProgressionEngine
+from app.services.logic.scoring import ScoringEngine
 
 class DrawEngine:
     def __init__(self, session: AsyncSession):
@@ -25,29 +28,91 @@ class DrawEngine:
             results = await self.session.exec(statement)
             return list(results.all())
 
-        # Logic for Stage 2 (Group Stage)
-        elif stage.sequence_order == 2:
-            # 1. Fetch Promoted Players from Stage 1
-            # TODO: Implement actual promotion logic based on results.
-            # For now, we might assume we need to fetch players who qualified.
-            # Since this is a "Visualizer" task, we might need to mock this or assume data exists.
+        # Logic for Stage 2 (Group Stage) and beyond
+        # We generally look for the previous stage.
+        else:
+            prev_stage_order = stage.sequence_order - 1
+            stmt_stage = select(Stage).where(
+                Stage.tournament_id == stage.tournament_id,
+                Stage.sequence_order == prev_stage_order
+            )
+            prev_stage = (await self.session.exec(stmt_stage)).first()
+            
+            promoted_players = []
+            
+            if prev_stage:
+                # 1. Fetch Promoted Players from Stage 1 (or previous)
+                promoted_ids = set()
+                
+                # Get all groups from previous stage
+                stmt_groups = select(Group).where(Group.stage_id == prev_stage.id)
+                groups = (await self.session.exec(stmt_groups)).all()
+                
+                for group in groups:
+                    # Calculate standings for this group
+                    # Fetch RaceResults for this group
+                    stmt_results = (
+                        select(RaceResult, Match)
+                        .join(Race, RaceResult.race_id == Race.id)
+                        .join(Match, Race.match_id == Match.id)
+                        .where(Match.group_id == group.id)
+                    )
+                    results = (await self.session.exec(stmt_results)).all()
+                    
+                    # Aggregate Results
+                    results_by_match = defaultdict(list)
+                    for rr, match in results:
+                        results_by_match[match.id].append(rr)
+                        
+                    group_stats = defaultdict(lambda: {"points": 0, "wins": 0, "player_id": None})
+                    
+                    for match_id, race_results in results_by_match.items():
+                        # We use previous stage's rules for scoring
+                        match_scores = ScoringEngine.calculate_match_score(race_results, prev_stage.rules_config)
+                        for score in match_scores:
+                            pid = str(score["player_id"])
+                            group_stats[pid]["player_id"] = pid
+                            group_stats[pid]["points"] += score["total_points"]
+                            group_stats[pid]["wins"] += score["wins"]
 
-            # 2. Fetch Super Seeds (seed_level == 2)
-            statement_seeds = select(Player).where(Player.seed_level == 2)
-            results_seeds = await self.session.exec(statement_seeds)
-            seeds = list(results_seeds.all())
+                    # Convert to list and sort
+                    standings = list(group_stats.values())
+                    # Sort by Points desc, then Wins desc
+                    standings.sort(key=lambda x: (x["points"], x["wins"]), reverse=True)
+                    
+                    # Add Rank
+                    for i, entry in enumerate(standings):
+                        entry["rank"] = i + 1
+                    
+                    # Determine Qualifiers using ProgressionEngine
+                    # Passing prev_stage because the advancement rules are usually defined THERE 
+                    # (e.g. "Top 4 from this stage advance")
+                    # OR defined in current stage? Usually rules like "Top 4 advance" are property of the source stage.
+                    # Let's assume prev_stage.rules_config has 'advancement'
+                    qualifiers = ProgressionEngine.determine_group_qualifiers(prev_stage, standings)
+                    
+                    for q in qualifiers:
+                        promoted_ids.add(q["player_id"])
 
-            # Combine
-            # Placeholder: For now, returning seeds + maybe some logic for promoted
-            # If we strictly follow instructions: "Fetch all Promoted Players from Stage 1"
-            # I will assume there is a way to identify them.
-            # Lacking that, I will return just seeds for safety to avoid crashing,
-            # or maybe ALL players if results are empty (for testing).
+                if promoted_ids:
+                    stmt_promoted = select(Player).where(Player.id.in_(list(promoted_ids)))
+                    promoted_players = list((await self.session.exec(stmt_promoted)).all())
 
-            # Let's return seeds for now to be safe and explicit.
-            return seeds
+            # 2. Fetch Super Seeds (seed_level == 2) if this is Stage 2
+            # Specific rule: Stage 2 includes Super Seeds.
+            seeds = []
+            if stage.sequence_order == 2:
+                statement_seeds = select(Player).where(Player.seed_level == 2)
+                results_seeds = await self.session.exec(statement_seeds)
+                seeds = list(results_seeds.all())
 
-        return []
+            # Combine unique players
+            # Use a dict by ID to deduplicate if logic overlaps
+            final_map = {str(p.id): p for p in promoted_players}
+            for p in seeds:
+                final_map[str(p.id)] = p
+                
+            return list(final_map.values())
 
     def perform_draw(self, players: List[Player], num_groups: int = 14) -> Dict[str, List[Dict[str, Any]]]:
         """

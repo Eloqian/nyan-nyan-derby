@@ -35,8 +35,15 @@ class GroupView(BaseModel):
     id: UUID
     name: str
     matches: List[MatchView]
+    standings: List[Dict[str, Any]] = []
 
 # ---------------------
+
+@router.get("/", response_model=List[Stage])
+async def list_stages(session: AsyncSession = Depends(get_session)):
+    stmt = select(Stage).order_by(Stage.sequence_order)
+    result = await session.exec(stmt)
+    return result.all()
 
 @router.get("/{stage_id}/standings", response_model=StageStandingsResponse)
 async def get_stage_standings(
@@ -78,9 +85,22 @@ async def get_stage_matches_view(
     """
     Returns a hierarchical view of groups -> matches -> participants for the Referee Dashboard.
     """
+    service = TournamentService(session)
+    
     # 1. Get Groups
     stmt = select(Group).where(Group.stage_id == stage_id).order_by(Group.name)
     groups = (await session.exec(stmt)).all()
+    
+    # Pre-calculate standings for the whole stage to distribute to groups
+    # This is a bit inefficient (re-fetching), but simpler to implement reuse
+    # Or we can filter standings by group.
+    full_standings = await service.get_stage_standings(str(stage_id))
+    # Map standings by Player ID for easy group lookup? 
+    # Actually we want standings PER GROUP usually for Group Stage?
+    # The current `get_stage_standings` aggregates by stage. 
+    # If the stage is "Group Stage", we usually want rankings within the group.
+    # But `get_stage_standings` returns a flat list. 
+    # Let's filter it by group participants.
 
     view_data = []
 
@@ -90,6 +110,8 @@ async def get_stage_matches_view(
         matches = (await session.exec(m_stmt)).all()
 
         matches_view = []
+        group_player_ids = set()
+
         for match in matches:
             # Get Participants
             mp_stmt = select(MatchParticipant, Player).join(Player).where(MatchParticipant.match_id == match.id)
@@ -97,13 +119,12 @@ async def get_stage_matches_view(
 
             participants_view = []
             for mp, player in mp_results:
+                group_player_ids.add(str(player.id))
                 participants_view.append(ParticipantView(
-                    player=PlayerView(id=player.id, name=player.name, is_npc=player.is_npc)
+                    player=PlayerView(id=player.id, name=player.in_game_name, is_npc=player.is_npc)
                 ))
 
-            # Get Results (Assuming single race per match for now, or just aggregating)
-            # We want to know if results exist to highlight the card
-            # And maybe show current state (rank)
+            # Get Results
             r_stmt = select(RaceResult).join(Race).where(Race.match_id == match.id)
             race_results = (await session.exec(r_stmt)).all()
 
@@ -123,11 +144,19 @@ async def get_stage_matches_view(
                 participants=participants_view,
                 results=results_list
             ))
+            
+        # Filter standings for this group
+        group_standings = [s for s in full_standings if str(s['player_id']) in group_player_ids]
+        # Re-rank within group
+        group_standings.sort(key=lambda x: (x["total_points"], x["wins"]), reverse=True)
+        for i, s in enumerate(group_standings):
+            s['rank'] = i + 1
 
         view_data.append(GroupView(
             id=group.id,
             name=group.name,
-            matches=matches_view
+            matches=matches_view,
+            standings=group_standings
         ))
 
     return view_data
@@ -172,6 +201,7 @@ async def save_groups(
     Saves the group structure to the database.
     Input: { "Group A": [ { "id": "...", ... }, ... ], ... }
     """
+    # ... (existing code) ...
     stage = await session.get(Stage, stage_id)
     if not stage:
         raise HTTPException(status_code=404, detail="Stage not found")
@@ -198,5 +228,44 @@ async def save_groups(
             session.add(participant)
 
         await session.commit()
+    
+    # After saving groups, generate matches automatically?
+    # Usually yes, but user might want to review. 
+    # For streamlined flow: YES.
+    # Generate Matches
+    service = TournamentService(session)
+    await service.generate_matches_for_stage(str(stage_id))
 
-    return {"message": "Groups saved successfully", "count": len(saved_groups)}
+    return {"message": "Groups saved and matches generated", "count": len(saved_groups)}
+
+@router.post("/{stage_id}/settle")
+async def settle_stage(
+    stage_id: UUID,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Mark current stage as complete and find the next stage for the draw.
+    Returns: { "next_stage_id": "...", "next_stage_name": "..." }
+    """
+    stage = await session.get(Stage, stage_id)
+    if not stage:
+        raise HTTPException(status_code=404, detail="Stage not found")
+        
+    # 1. Check if all matches are finished?
+    # For flexibility, we allow force settle. (Admin knows best)
+    
+    # 2. Find next stage
+    stmt = select(Stage).where(
+        Stage.tournament_id == stage.tournament_id,
+        Stage.sequence_order == stage.sequence_order + 1
+    )
+    next_stage = (await session.exec(stmt)).first()
+    
+    if not next_stage:
+        return {"message": "Tournament Completed! No next stage.", "next_stage_id": None}
+        
+    return {
+        "message": f"Ready for {next_stage.name}",
+        "next_stage_id": str(next_stage.id),
+        "next_stage_name": next_stage.name
+    }

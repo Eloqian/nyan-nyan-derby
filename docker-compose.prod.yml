@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=meow_cup
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - meow-net
+
+  backend:
+    build: 
+      context: ./backend
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/meow_cup
+      - SECRET_KEY=CHANGE_THIS_IN_PRODUCTION_ENV
+    networks:
+      - meow-net
+    depends_on:
+      - db
+    # No ports exposed here, frontend nginx proxies to it internally on 'backend:8080'
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "10080:80"
+    networks:
+      - meow-net
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+
+networks:
+  meow-net:
+    driver: bridge
