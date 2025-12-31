@@ -4,6 +4,8 @@ from app.db import get_session
 from app.models.tournament import Stage, Group, Match, GroupParticipant, Tournament, MatchParticipant, Race, RaceResult
 from app.models.user import Player
 from app.services.logic.draw_engine import DrawEngine
+from app.services.tournament_service import TournamentService
+from app.models.view_models import StageStandingsResponse, PlayerStanding
 from uuid import UUID
 from typing import Dict, List, Any, Optional
 from sqlmodel import select
@@ -35,6 +37,38 @@ class GroupView(BaseModel):
     matches: List[MatchView]
 
 # ---------------------
+
+@router.get("/{stage_id}/standings", response_model=StageStandingsResponse)
+async def get_stage_standings(
+    stage_id: UUID,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Returns the calculated standings (leaderboard) for the stage.
+    """
+    service = TournamentService(session)
+    try:
+        standings_data = await service.get_stage_standings(str(stage_id))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Convert to Pydantic models
+    player_standings = [
+        PlayerStanding(
+            rank=s['rank'],
+            player_id=s['player_id'],
+            player_name=s['player_name'],
+            total_points=s['total_points'],
+            wins=s['wins'],
+            matches_played=s['matches_played']
+        )
+        for s in standings_data
+    ]
+
+    return StageStandingsResponse(
+        stage_id=stage_id,
+        standings=player_standings
+    )
 
 @router.get("/{stage_id}/matches_view", response_model=List[GroupView])
 async def get_stage_matches_view(

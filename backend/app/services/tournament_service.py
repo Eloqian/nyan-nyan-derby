@@ -234,3 +234,67 @@ class TournamentService:
 
         await self.session.commit()
         return calculated_results
+
+    async def get_stage_standings(self, stage_id: str) -> List[Dict[str, Any]]:
+        from collections import defaultdict
+        
+        stage = await self.session.get(Stage, stage_id)
+        if not stage:
+            raise ValueError("Stage not found")
+            
+        # 1. Fetch all RaceResults for this stage
+        # Join: RaceResult -> Race -> Match -> Group -> Stage
+        stmt = (
+            select(RaceResult, Match)
+            .join(Race, RaceResult.race_id == Race.id)
+            .join(Match, Race.match_id == Match.id)
+            .join(Group, Match.group_id == Group.id)
+            .where(Group.stage_id == stage_id)
+        )
+        results = await self.session.exec(stmt)
+        all_data = results.all() # List of (RaceResult, Match)
+        
+        if not all_data:
+            return []
+
+        # 2. Group by Match
+        results_by_match = defaultdict(list)
+        for rr, match in all_data:
+            results_by_match[match.id].append(rr)
+            
+        # 3. Calculate Scores & Aggregate
+        global_stats = defaultdict(lambda: {"points": 0, "wins": 0, "matches": 0, "player_id": None})
+        
+        for match_id, race_results in results_by_match.items():
+            match_scores = ScoringEngine.calculate_match_score(race_results, stage.rules_config)
+            for score in match_scores:
+                pid = score["player_id"]
+                global_stats[pid]["player_id"] = pid
+                global_stats[pid]["points"] += score["total_points"]
+                global_stats[pid]["wins"] += score["wins"]
+                global_stats[pid]["matches"] += 1
+
+        # 4. Fetch Player Names
+        player_ids = list(global_stats.keys())
+        players = await self.session.exec(select(Player).where(Player.id.in_(player_ids)))
+        player_map = {p.id: p.in_game_name for p in players.all()}
+        
+        # 5. Format & Sort
+        standings = []
+        for pid, stats in global_stats.items():
+            standings.append({
+                "player_id": pid,
+                "player_name": player_map.get(pid, "Unknown"),
+                "total_points": stats["points"],
+                "wins": stats["wins"],
+                "matches_played": stats["matches"]
+            })
+            
+        # Sort by Points desc, then Wins desc
+        standings.sort(key=lambda x: (x["total_points"], x["wins"]), reverse=True)
+        
+        # Add Rank
+        for i, entry in enumerate(standings):
+            entry["rank"] = i + 1
+            
+        return standings
