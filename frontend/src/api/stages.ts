@@ -28,14 +28,10 @@ export const saveGroups = async (stageId: string, groupsData: any) => {
   return response.json()
 }
 
-export const getStages = async () => {
-    // Helper to fetch all stages (we might need a real endpoint for this, assuming one exists or using a known list)
-    // For now, let's assume we can fetch stages from /api/v1/stages if it existed, or we just mock/hardcode IDs in component
-    // Actually we need an endpoint to list stages.
-    // Let's assume we fetch /api/v1/stages/ (which is typical CRUD)
-    // If not exists, we might need to add it backend side.
-    // Checking backend files...
-    return [] 
+export const getStages = async (tournamentId: string) => {
+    const response = await fetch(`${API_BASE_URL}/stages/?tournament_id=${tournamentId}`)
+    if (!response.ok) return []
+    return response.json()
 }
 
 export const getStageMatchesView = async (stageId: string) => {

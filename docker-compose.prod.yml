@@ -2,9 +2,9 @@ services:
   db:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=meow_cup
+      - POSTGRES_USER=meow_user
+      - POSTGRES_PASSWORD=meow_password
+      - POSTGRES_DB=meow_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -14,7 +14,7 @@ services:
     build: 
       context: ./backend
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/meow_cup
+      - DATABASE_URL=postgresql+asyncpg://meow_user:meow_password@db:5432/meow_db
       - SECRET_KEY=CHANGE_THIS_IN_PRODUCTION_ENV
     networks:
       - meow-net

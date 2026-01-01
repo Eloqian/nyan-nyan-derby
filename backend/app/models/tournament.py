@@ -1,5 +1,6 @@
 from typing import Optional, List, Dict, Any
 from sqlmodel import SQLModel, Field, Relationship, JSON
+from sqlalchemy import Text, Column
 from uuid import UUID, uuid4
 from datetime import datetime
 from enum import Enum
@@ -26,11 +27,32 @@ class Tournament(SQLModel, table=True):
     name: str
     status: TournamentStatus = Field(default=TournamentStatus.SETUP)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    start_time: Optional[datetime] = None
 
     # General configuration for the tournament (e.g. seed_ratio: 0.1)
     rules_config: Dict[str, Any] = Field(default={}, sa_type=JSON)
+    
+    # Detailed prize pool configuration
+    prize_pool_config: Dict[str, Any] = Field(default={}, sa_type=JSON)
+    
+    # The full text content of the rules/announcement
+    rules_content: Optional[str] = Field(default=None, sa_column=Column(Text))
 
     stages: List["Stage"] = Relationship(back_populates="tournament")
+    participants: List["TournamentParticipant"] = Relationship(back_populates="tournament")
+
+class TournamentParticipant(SQLModel, table=True):
+    tournament_id: UUID = Field(foreign_key="tournament.id", primary_key=True)
+    player_id: UUID = Field(foreign_key="player.id", primary_key=True)
+    
+    checked_in: bool = Field(default=False)
+    checked_in_at: Optional[datetime] = None
+    
+    # Per-tournament seed level if we want to override global
+    seed_level: int = Field(default=0)
+
+    tournament: Tournament = Relationship(back_populates="participants")
+    player: "Player" = Relationship(back_populates="tournament_participations")
 
 class Stage(SQLModel, table=True):
     id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
@@ -109,4 +131,5 @@ class RaceResult(SQLModel, table=True):
     race: Race = Relationship(back_populates="results")
     player: "Player" = Relationship(back_populates="race_results")
 
-from .user import Player
+from .user import User, Player
+from .tournament import Tournament, Stage, Group, Match, MatchParticipant, Race, RaceResult, GroupParticipant, TournamentParticipant

@@ -35,5 +35,6 @@ class Player(PlayerBase, table=True):
     matches: List["MatchParticipant"] = Relationship(back_populates="player")
     groups: List["GroupParticipant"] = Relationship(back_populates="player")
     race_results: List["RaceResult"] = Relationship(back_populates="player")
+    tournament_participations: List["TournamentParticipant"] = Relationship(back_populates="player")
 
-from .tournament import MatchParticipant, RaceResult, GroupParticipant
+from .tournament import MatchParticipant, RaceResult, GroupParticipant, TournamentParticipant

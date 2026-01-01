@@ -6,8 +6,6 @@ services:
       POSTGRES_USER: meow_user
       POSTGRES_PASSWORD: meow_password
       POSTGRES_DB: meow_db
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

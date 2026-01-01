@@ -69,7 +69,7 @@ const message = useMessage()
 const qqId = ref('')
 const claiming = ref(false)
 const boundPlayerName = ref('')
-const loadingPlayer = ref(true) // Start assuming we are loading
+const loadingPlayer = ref(true)
 
 // Matches Data
 const matches = ref<MatchResponse[]>([])
@@ -81,23 +81,7 @@ onMounted(async () => {
      return
   }
   
-  // 1. Check User/Player Status (Mocked or Real)
-  // Since /me doesn't return player info yet, we rely on trying to fetch matches or claim status.
-  // Ideally backend /me should return player info.
-  // For now, let's try to fetch matches. If it works, we have a player.
-  // Or we can add a simple check endpoint.
-  
-  // Workaround: We try to fetch matches. If it returns 200, we assume bound.
-  // If fetch matches returns [], we still don't know if bound or just no matches.
-  
-  // Let's rely on local storage or optimistically fetch matches.
   await fetchMatches()
-  
-  // If we have matches, we definitely have a player.
-  // If not, we might check claim status (skipping for this iteration, user sees claim box if logic falls through)
-  // For UI stability, let's assume if matches fetch didn't throw 403/404, we are good?
-  // Actually, let's just show claim box if we can't confirm player name.
-  
   loadingPlayer.value = false
 })
 
@@ -107,11 +91,8 @@ const fetchMatches = async () => {
   try {
     const data = await getMyMatches(auth.token)
     matches.value = data
-    // Side effect: if we got data, we are bound. 
-    // We can't easily get the name from matches list if empty.
-    // Let's assume user is bound if they logged in successfully for now in this prototype.
     if (data.length > 0) {
-       boundPlayerName.value = "Trainer" // Placeholder until we update /me
+       boundPlayerName.value = "Trainer" 
     }
   } catch (e) {
     console.error(e)
@@ -135,15 +116,15 @@ const handleClaim = async () => {
     
     if (res.ok) {
       const data = await res.json()
-      message.success(t('profile.checkin_success'))
+      message.success(t('profile.bind_success'))
       boundPlayerName.value = data.in_game_name
       await fetchMatches()
     } else {
       const err = await res.json()
-      message.error(err.detail || t('profile.checkin_fail'))
+      message.error(err.detail || t('profile.bind_fail'))
     }
   } catch (e) {
-    message.error(t('profile.checkin_fail'))
+    message.error(t('profile.bind_fail'))
   } finally {
     claiming.value = false
   }

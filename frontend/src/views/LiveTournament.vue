@@ -11,12 +11,14 @@ import { getStageMatchesView, submitMatchResult } from '../api/stages'
 import { updateRoomNumber } from '../api/matches'
 import { getCurrentTournament, listTournaments, type Tournament } from '../api/tournaments'
 import PreTournament from '../components/PreTournament.vue'
+import MarkdownIt from 'markdown-it' // Import markdown-it
 
 const API_BASE_URL = '/api/v1'
 const auth = useAuthStore()
 const message = useMessage()
 const route = useRoute()
 const { t } = useI18n()
+const md = new MarkdownIt() // Create a MarkdownIt instance
 
 // Data State
 const tournament = ref<Tournament | null>(null)
@@ -70,10 +72,13 @@ onMounted(async () => {
    }
 })
 
-const shouldShowPreTournament = computed(() => {
-   return tournament.value?.status === 'setup'
+const defaultTab = computed(() => {
+   return tournament.value?.status === 'setup' ? 'overview' : 'matches'
 })
 
+const renderedRulesContent = computed(() => {
+  return tournament.value?.rules_content ? md.render(tournament.value.rules_content) : ''
+})
 
 // Stage Logic
 const loadStageData = async (stageId: string) => {
@@ -259,96 +264,110 @@ const saveRoomNumber = async () => {
       <n-spin size="large" />
     </div>
 
-    <div v-else-if="shouldShowPreTournament">
-       <PreTournament />
-    </div>
+    <div v-else-if="tournament">
+       <n-tabs type="segment" animated :default-value="defaultTab">
+          <!-- Overview Tab -->
+          <n-tab-pane name="overview" :tab="t('live.tab_overview')">
+             <PreTournament :tournament="tournament" />
+          </n-tab-pane>
 
-    <div v-else-if="stages.length > 0">
-       <n-tabs type="card" v-model:value="activeStageId" @update:value="loadStageData">
-         <n-tab-pane v-for="stage in stages" :key="stage.id" :name="stage.id" :tab="stage.name" />
+          <!-- Match Tab -->
+          <n-tab-pane name="matches" :tab="t('live.tab_matches')" :disabled="stages.length === 0">
+             <n-tabs type="card" v-model:value="activeStageId" @update:value="loadStageData" style="margin-top: 16px">
+               <n-tab-pane v-for="stage in stages" :key="stage.id" :name="stage.id" :tab="stage.name" />
+             </n-tabs>
+             
+             <div v-if="activeGroupData.length > 0" class="content-split">
+                <!-- Left: Group List -->
+                <div class="group-sidebar">
+                  <n-menu 
+                    :options="groupMenuOptions" 
+                    v-model:value="activeGroupId"
+                    @update:value="handleGroupChange"
+                  />
+                </div>
+
+                <!-- Right: Detail View -->
+                <div class="group-detail">
+                  <div v-if="currentGroup" class="detail-wrapper">
+                    <div class="group-header">
+                      <h3>{{ currentGroup.name }} {{ t('live.standings') }}</h3>
+                    </div>
+                    
+                    <!-- Standings Table -->
+                    <n-data-table 
+                      :columns="standingsColumns" 
+                      :data="currentGroup.standings" 
+                      size="small"
+                      :single-line="false"
+                    />
+
+                    <n-divider />
+
+                    <!-- Match List -->
+                    <h3>{{ t('live.matches') }}</h3>
+                    <div class="matches-list">
+                       <div v-for="match in currentGroup.matches" :key="match.id" class="match-item">
+                         <n-card size="small" :bordered="true">
+                           <div class="match-row">
+                              <div class="match-info">
+                                 <strong>{{ match.name }}</strong>
+                                 <n-tag :type="getStatusType(match.status)" size="tiny" style="margin-left: 8px">
+                                   {{ match.status }}
+                                 </n-tag>
+                              </div>
+                              
+                              <div class="action-area" v-if="canEdit()">
+                                 <n-space>
+                                    <!-- Room Button -->
+                                    <n-button 
+                                       size="small" 
+                                       :type="match.room_number ? 'default' : 'warning'" 
+                                       dashed 
+                                       @click="openRoomModal(match)"
+                                    >
+                                       <template v-if="match.room_number">🏠 {{ match.room_number }}</template>
+                                       <template v-else>{{ t('live.set_room') }}</template>
+                                    </n-button>
+
+                                    <n-button size="small" type="primary" secondary @click="openResultModal(match)">
+                                      {{ t('live.result') }}
+                                    </n-button>
+                                 </n-space>
+                              </div>
+                           </div>
+                           
+                           <!-- Simple Result Preview -->
+                           <div v-if="match.results && match.results.length > 0" class="result-preview">
+                              <n-space>
+                                 <n-tag v-for="res in getSortedResults(match.results)" :key="res.player_id" size="small" :color="{ color: '#fafafa', textColor: '#333', borderColor: '#eee' }">
+                                    <template #icon>
+                                       <span style="font-weight:bold; color:#fbc02d" v-if="res.rank===1">🥇</span>
+                                       <span style="font-weight:bold; color:#9e9e9e" v-else-if="res.rank===2">🥈</span>
+                                       <span style="font-weight:bold; color:#a1887f" v-else-if="res.rank===3">🥉</span>
+                                       <span v-else>{{ res.rank }}.</span>
+                                    </template>
+                                    {{ getPlayerName(match, res.player_id) }} (+{{ res.points }})
+                                 </n-tag>
+                              </n-space>
+                           </div>
+                         </n-card>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+             </div>
+             <n-empty v-else :description="t('live.no_data')" />
+          </n-tab-pane>
+
+          <!-- Rules Tab -->
+          <n-tab-pane name="rules" :tab="t('live.tab_rules')">
+             <n-card>
+                <div v-if="tournament?.rules_content" class="markdown-content" v-html="renderedRulesContent"></div>
+                <n-empty v-else :description="t('live.no_rules')" />
+             </n-card>
+          </n-tab-pane>
        </n-tabs>
-       
-       <div v-if="activeGroupData.length > 0" class="content-split">
-          <!-- Left: Group List -->
-          <div class="group-sidebar">
-            <n-menu 
-              :options="groupMenuOptions" 
-              v-model:value="activeGroupId"
-              @update:value="handleGroupChange"
-            />
-          </div>
-
-          <!-- Right: Detail View -->
-          <div class="group-detail">
-            <div v-if="currentGroup" class="detail-wrapper">
-              <div class="group-header">
-                <h3>{{ currentGroup.name }} {{ t('live.standings') }}</h3>
-              </div>
-              
-              <!-- Standings Table -->
-              <n-data-table 
-                :columns="standingsColumns" 
-                :data="currentGroup.standings" 
-                size="small"
-                :single-line="false"
-              />
-
-              <n-divider />
-
-              <!-- Match List -->
-              <h3>{{ t('live.matches') }}</h3>
-              <div class="matches-list">
-                 <div v-for="match in currentGroup.matches" :key="match.id" class="match-item">
-                   <n-card size="small" :bordered="true">
-                     <div class="match-row">
-                        <div class="match-info">
-                           <strong>{{ match.name }}</strong>
-                           <n-tag :type="getStatusType(match.status)" size="tiny" style="margin-left: 8px">
-                             {{ match.status }}
-                           </n-tag>
-                        </div>
-                        
-                        <div class="action-area" v-if="canEdit()">
-                           <n-space>
-                              <!-- Room Button -->
-                              <n-button 
-                                 size="small" 
-                                 :type="match.room_number ? 'default' : 'warning'" 
-                                 dashed 
-                                 @click="openRoomModal(match)"
-                              >
-                                 <template v-if="match.room_number">🏠 {{ match.room_number }}</template>
-                                 <template v-else>{{ t('live.set_room') }}</template>
-                              </n-button>
-
-                              <n-button size="small" type="primary" secondary @click="openResultModal(match)">
-                                {{ t('live.result') }}
-                              </n-button>
-                           </n-space>
-                        </div>
-                     </div>
-                     
-                     <!-- Simple Result Preview -->
-                     <div v-if="match.results && match.results.length > 0" class="result-preview">
-                        <n-space>
-                           <n-tag v-for="res in getSortedResults(match.results)" :key="res.player_id" size="small" :color="{ color: '#fafafa', textColor: '#333', borderColor: '#eee' }">
-                              <template #icon>
-                                 <span style="font-weight:bold; color:#fbc02d" v-if="res.rank===1">🥇</span>
-                                 <span style="font-weight:bold; color:#9e9e9e" v-else-if="res.rank===2">🥈</span>
-                                 <span style="font-weight:bold; color:#a1887f" v-else-if="res.rank===3">🥉</span>
-                                 <span v-else>{{ res.rank }}.</span>
-                              </template>
-                              {{ getPlayerName(match, res.player_id) }} (+{{ res.points }})
-                           </n-tag>
-                        </n-space>
-                     </div>
-                   </n-card>
-                 </div>
-              </div>
-            </div>
-          </div>
-       </div>
-       <n-empty v-else :description="t('live.no_data')" />
     </div>
     
     <n-empty v-else :description="t('live.no_data')" />
@@ -472,4 +491,64 @@ const saveRoomNumber = async () => {
 .check-cell:hover {
    background: #f5f5f5;
 }
+
+.markdown-content :deep(h1), .markdown-content :deep(h2), .markdown-content :deep(h3) {
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: bold;
+}
+
+.markdown-content :deep(h1) { font-size: 1.8em; }
+.markdown-content :deep(h2) { font-size: 1.5em; }
+.markdown-content :deep(h3) { font-size: 1.2em; }
+
+.markdown-content :deep(p) {
+  margin-bottom: 1em;
+  line-height: 1.6;
+}
+
+.markdown-content :deep(ul) {
+  list-style-type: disc;
+  padding-left: 20px;
+  margin-bottom: 1em;
+}
+
+.markdown-content :deep(ol) {
+  list-style-type: decimal;
+  padding-left: 20px;
+  margin-bottom: 1em;
+}
+
+.markdown-content :deep(li) {
+  margin-bottom: 0.5em;
+}
+
+.markdown-content :deep(strong) {
+  font-weight: bold;
+}
+
+.markdown-content :deep(em) {
+  font-style: italic;
+}
+
+.markdown-content :deep(pre), .markdown-content :deep(code) {
+  font-family: 'Fira Code', monospace;
+  background-color: #f6f8fa;
+  border-radius: 6px;
+  padding: 0.2em 0.4em;
+  font-size: 0.9em;
+}
+
+.markdown-content :deep(pre) {
+  padding: 1em;
+  overflow-x: auto;
+}
+
+.markdown-content :deep(blockquote) {
+  border-left: 4px solid #dfe2e5;
+  color: #6a737d;
+  margin-left: 0;
+  padding-left: 1em;
+}
+
 </style>

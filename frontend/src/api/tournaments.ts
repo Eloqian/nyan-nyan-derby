@@ -5,7 +5,21 @@ export interface Tournament {
   name: string
   status: 'setup' | 'active' | 'completed'
   created_at: string
+  start_time?: string
   rules_config: Record<string, any>
+  prize_pool_config?: Record<string, any>
+  rules_content?: string
+}
+
+export interface TournamentParticipant {
+  tournament_id: string
+  player_id: string
+  checked_in: boolean
+  checked_in_at?: string
+  player: {
+    in_game_name: string
+    is_npc: boolean
+  }
 }
 
 export const createTournament = async (token: string, data: any) => {
@@ -27,7 +41,6 @@ export const listTournaments = async (): Promise<Tournament[]> => {
   return response.json()
 }
 
-
 export const getCurrentTournament = async (): Promise<Tournament | null> => {
   const response = await fetch(`${API_BASE_URL}/tournaments/current`)
   if (!response.ok) return null
@@ -45,5 +58,25 @@ export const updateTournament = async (token: string, id: string, data: any) => 
     body: JSON.stringify(data)
   })
   if (!response.ok) throw new Error('Failed to update tournament')
+  return response.json()
+}
+
+export const checkInTournament = async (token: string, tournamentId: string) => {
+  const response = await fetch(`${API_BASE_URL}/tournaments/${tournamentId}/checkin`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  })
+  if (!response.ok) {
+     const err = await response.json()
+     throw new Error(err.detail || 'Check-in failed')
+  }
+  return response.json()
+}
+
+export const getTournamentParticipants = async (tournamentId: string): Promise<TournamentParticipant[]> => {
+  const response = await fetch(`${API_BASE_URL}/tournaments/${tournamentId}/participants`)
+  if (!response.ok) return []
   return response.json()
 }
