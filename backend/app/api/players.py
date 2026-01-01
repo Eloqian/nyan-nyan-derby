@@ -1,8 +1,10 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db import get_session
 from app.services.player_service import PlayerService
-from app.models import User
+from app.models import User, Player
 from app.api.auth import get_current_user
 from pydantic import BaseModel
 
@@ -41,3 +43,20 @@ async def claim_player(
         raise HTTPException(status_code=400, detail="Claim failed: Invalid QQ or already claimed")
 
     return {"message": "Successfully bound QQ to account"}
+
+@router.get("/", response_model=List[Player])
+async def list_players(
+    claimed: bool = False,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    List players. Option to filter by 'claimed' (has user_id).
+    """
+    stmt = select(Player)
+    if claimed:
+        stmt = stmt.where(Player.user_id != None)
+    
+    # Sort by claimed first, then name
+    stmt = stmt.order_by(Player.user_id.desc(), Player.in_game_name)
+    result = await session.exec(stmt)
+    return result.all()

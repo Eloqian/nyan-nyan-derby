@@ -9,6 +9,8 @@ import type { DataTableColumns } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 import { getStageMatchesView, submitMatchResult } from '../api/stages'
 import { updateRoomNumber } from '../api/matches'
+import { getCurrentTournament, listTournaments, type Tournament } from '../api/tournaments'
+import PreTournament from '../components/PreTournament.vue'
 
 const API_BASE_URL = '/api/v1'
 const auth = useAuthStore()
@@ -17,6 +19,7 @@ const route = useRoute()
 const { t } = useI18n()
 
 // Data State
+const tournament = ref<Tournament | null>(null)
 const stages = ref<any[]>([])
 const activeStageId = ref<string>('')
 const activeGroupData = ref<any[]>([])
@@ -26,12 +29,28 @@ const loading = ref(false)
 // Init
 onMounted(async () => {
    try {
+     loading.value = true
      // Check if tournamentId is provided in route
      const tournamentId = route.params.tournamentId as string | undefined
      
-     let url = `${API_BASE_URL}/stages/`
+     // 1. Fetch Tournament Details
      if (tournamentId) {
-       url += `?tournament_id=${tournamentId}`
+        // Since backend missing GET /:id, we list all and find (Inefficient but works for small scale)
+        const all = await listTournaments()
+        tournament.value = all.find(t => t.id === tournamentId) || null
+     } else {
+        tournament.value = await getCurrentTournament()
+     }
+
+     if (!tournament.value) {
+        loading.value = false
+        return
+     }
+
+     // 2. Fetch Stages
+     let url = `${API_BASE_URL}/stages/`
+     if (tournament.value.id) {
+       url += `?tournament_id=${tournament.value.id}`
      }
      
      const res = await fetch(url)
@@ -44,7 +63,15 @@ onMounted(async () => {
      }
    } catch (e) {
       console.error(e)
+   } finally {
+      // Only set loading false if we are not waiting for stage data (which has its own loading)
+      // But here we want to show global loading until we know if we are in PreTournament or Live
+      loading.value = false
    }
+})
+
+const shouldShowPreTournament = computed(() => {
+   return tournament.value?.status === 'setup'
 })
 
 
@@ -228,93 +255,100 @@ const saveRoomNumber = async () => {
       <n-text depth="3">{{ t('live.subtitle') }}</n-text>
     </div>
 
-    <n-tabs type="card" v-model:value="activeStageId" @update:value="loadStageData">
-      <n-tab-pane v-for="stage in stages" :key="stage.id" :name="stage.id" :tab="stage.name" />
-    </n-tabs>
-
     <div v-if="loading" class="loading-area">
       <n-spin size="large" />
     </div>
 
-    <div v-else-if="activeGroupData.length > 0" class="content-split">
-      <!-- Left: Group List -->
-      <div class="group-sidebar">
-        <n-menu 
-          :options="groupMenuOptions" 
-          v-model:value="activeGroupId"
-          @update:value="handleGroupChange"
-        />
-      </div>
+    <div v-else-if="shouldShowPreTournament">
+       <PreTournament />
+    </div>
 
-      <!-- Right: Detail View -->
-      <div class="group-detail">
-        <div v-if="currentGroup" class="detail-wrapper">
-          <div class="group-header">
-            <h3>{{ currentGroup.name }} {{ t('live.standings') }}</h3>
+    <div v-else-if="stages.length > 0">
+       <n-tabs type="card" v-model:value="activeStageId" @update:value="loadStageData">
+         <n-tab-pane v-for="stage in stages" :key="stage.id" :name="stage.id" :tab="stage.name" />
+       </n-tabs>
+       
+       <div v-if="activeGroupData.length > 0" class="content-split">
+          <!-- Left: Group List -->
+          <div class="group-sidebar">
+            <n-menu 
+              :options="groupMenuOptions" 
+              v-model:value="activeGroupId"
+              @update:value="handleGroupChange"
+            />
           </div>
-          
-          <!-- Standings Table -->
-          <n-data-table 
-            :columns="standingsColumns" 
-            :data="currentGroup.standings" 
-            size="small"
-            :single-line="false"
-          />
 
-          <n-divider />
+          <!-- Right: Detail View -->
+          <div class="group-detail">
+            <div v-if="currentGroup" class="detail-wrapper">
+              <div class="group-header">
+                <h3>{{ currentGroup.name }} {{ t('live.standings') }}</h3>
+              </div>
+              
+              <!-- Standings Table -->
+              <n-data-table 
+                :columns="standingsColumns" 
+                :data="currentGroup.standings" 
+                size="small"
+                :single-line="false"
+              />
 
-          <!-- Match List -->
-          <h3>{{ t('live.matches') }}</h3>
-          <div class="matches-list">
-             <div v-for="match in currentGroup.matches" :key="match.id" class="match-item">
-               <n-card size="small" :bordered="true">
-                 <div class="match-row">
-                    <div class="match-info">
-                       <strong>{{ match.name }}</strong>
-                       <n-tag :type="getStatusType(match.status)" size="tiny" style="margin-left: 8px">
-                         {{ match.status }}
-                       </n-tag>
-                    </div>
-                    
-                    <div class="action-area" v-if="canEdit()">
-                       <n-space>
-                          <!-- Room Button -->
-                          <n-button 
-                             size="small" 
-                             :type="match.room_number ? 'default' : 'warning'" 
-                             dashed 
-                             @click="openRoomModal(match)"
-                          >
-                             <template v-if="match.room_number">🏠 {{ match.room_number }}</template>
-                             <template v-else>{{ t('live.set_room') }}</template>
-                          </n-button>
+              <n-divider />
 
-                          <n-button size="small" type="primary" secondary @click="openResultModal(match)">
-                            {{ t('live.result') }}
-                          </n-button>
-                       </n-space>
-                    </div>
+              <!-- Match List -->
+              <h3>{{ t('live.matches') }}</h3>
+              <div class="matches-list">
+                 <div v-for="match in currentGroup.matches" :key="match.id" class="match-item">
+                   <n-card size="small" :bordered="true">
+                     <div class="match-row">
+                        <div class="match-info">
+                           <strong>{{ match.name }}</strong>
+                           <n-tag :type="getStatusType(match.status)" size="tiny" style="margin-left: 8px">
+                             {{ match.status }}
+                           </n-tag>
+                        </div>
+                        
+                        <div class="action-area" v-if="canEdit()">
+                           <n-space>
+                              <!-- Room Button -->
+                              <n-button 
+                                 size="small" 
+                                 :type="match.room_number ? 'default' : 'warning'" 
+                                 dashed 
+                                 @click="openRoomModal(match)"
+                              >
+                                 <template v-if="match.room_number">🏠 {{ match.room_number }}</template>
+                                 <template v-else>{{ t('live.set_room') }}</template>
+                              </n-button>
+
+                              <n-button size="small" type="primary" secondary @click="openResultModal(match)">
+                                {{ t('live.result') }}
+                              </n-button>
+                           </n-space>
+                        </div>
+                     </div>
+                     
+                     <!-- Simple Result Preview -->
+                     <div v-if="match.results && match.results.length > 0" class="result-preview">
+                        <n-space>
+                           <n-tag v-for="res in getSortedResults(match.results)" :key="res.player_id" size="small" :color="{ color: '#fafafa', textColor: '#333', borderColor: '#eee' }">
+                              <template #icon>
+                                 <span style="font-weight:bold; color:#fbc02d" v-if="res.rank===1">🥇</span>
+                                 <span style="font-weight:bold; color:#9e9e9e" v-else-if="res.rank===2">🥈</span>
+                                 <span style="font-weight:bold; color:#a1887f" v-else-if="res.rank===3">🥉</span>
+                                 <span v-else>{{ res.rank }}.</span>
+                              </template>
+                              {{ getPlayerName(match, res.player_id) }} (+{{ res.points }})
+                           </n-tag>
+                        </n-space>
+                     </div>
+                   </n-card>
                  </div>
-                 
-                 <!-- Simple Result Preview -->
-                 <div v-if="match.results && match.results.length > 0" class="result-preview">
-                    <n-space>
-                       <n-tag v-for="res in getSortedResults(match.results)" :key="res.player_id" size="small" :color="{ color: '#fafafa', textColor: '#333', borderColor: '#eee' }">
-                          <template #icon>
-                             <span style="font-weight:bold; color:#fbc02d" v-if="res.rank===1">🥇</span>
-                             <span style="font-weight:bold; color:#9e9e9e" v-else-if="res.rank===2">🥈</span>
-                             <span style="font-weight:bold; color:#a1887f" v-else-if="res.rank===3">🥉</span>
-                             <span v-else>{{ res.rank }}.</span>
-                          </template>
-                          {{ getPlayerName(match, res.player_id) }} (+{{ res.points }})
-                       </n-tag>
-                    </n-space>
-                 </div>
-               </n-card>
-             </div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+       </div>
+       <n-empty v-else :description="t('live.no_data')" />
     </div>
     
     <n-empty v-else :description="t('live.no_data')" />

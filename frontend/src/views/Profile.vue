@@ -8,12 +8,12 @@
     </n-card>
 
     <!-- Claim Section -->
-    <n-card :title="`${t('profile.checkin_status')}`" v-if="!boundPlayerName && !loadingPlayer">
+    <n-card :title="t('profile.bind_account')" v-if="!boundPlayerName && !loadingPlayer">
       <p>{{ t('profile.qq_verify_prompt') }}</p>
       <n-input-group>
         <n-input v-model:value="qqId" :placeholder="t('profile.enter_qq_id')" />
         <n-button type="primary" @click="handleClaim" :loading="claiming">
-          {{ t('profile.checkin') }}
+          {{ t('profile.bind_btn') }}
         </n-button>
       </n-input-group>
     </n-card>

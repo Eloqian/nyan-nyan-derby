@@ -100,9 +100,7 @@ function handleProfileSelect(key: string) {
                
                <!-- Admin-only buttons -->
                <template v-if="auth.user?.is_admin">
-                 <n-button quaternary @click="router.push('/referee')">
-                   {{ t('nav.referee') }}
-                 </n-button>
+
                  <n-button quaternary @click="router.push('/admin')">
                    {{ t('nav.admin') }}
                  </n-button>
