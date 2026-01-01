@@ -28,6 +28,17 @@
                  </div>
                  
                  <div class="actions">
+                    <!-- Create New Button (Only if completed) -->
+                    <n-button 
+                       v-if="tournament.status === 'completed'"
+                       type="primary" 
+                       size="small"
+                       @click="showCreateModal = true"
+                       style="margin-bottom: 8px"
+                    >
+                       {{ t('admin.create_new') }}
+                    </n-button>
+
                     <n-text depth="3">{{ t('admin.flow_control') }}</n-text>
                     <n-button-group>
                        <n-button 
@@ -121,12 +132,26 @@
     </n-card>
 
     <!-- Create Modal -->
-    <n-modal v-model:show="showCreateModal" preset="card" :title="t('admin.create_modal_title')" style="width: 500px">
-       <n-form>
+    <n-modal v-model:show="showCreateModal" preset="card" :title="t('admin.create_modal_title')" style="width: 600px">
+       <n-form label-placement="left" label-width="120">
           <n-form-item :label="t('admin.tournament_name')">
              <n-input v-model:value="newTourneyName" placeholder="e.g. Meow Cup 2025" />
           </n-form-item>
-          <!-- Additional config could go here -->
+          
+          <n-divider>{{ t('admin.rules_config') }}</n-divider>
+          
+          <n-form-item :label="t('admin.points_map')">
+             <n-space vertical>
+                <n-input-group v-for="i in 5" :key="i">
+                   <n-button disabled style="width: 100px">{{ t('admin.rank_label', {rank: i}) }}</n-button>
+                   <n-input-number v-model:value="pointsMap[i]" :min="0" />
+                </n-input-group>
+             </n-space>
+          </n-form-item>
+
+          <n-form-item :label="t('admin.prizes')">
+             <n-dynamic-input v-model:value="prizes" placeholder="e.g. 200" />
+          </n-form-item>
        </n-form>
        <template #footer>
           <div style="display: flex; justify-content: flex-end; gap: 12px;">
@@ -143,7 +168,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { 
-  useMessage, NCard, NTabs, NTabPane, NUpload, NUploadDragger, NIcon, NText, NP, NEmpty, NButton, NTag, NButtonGroup, NDivider, NAlert, NSpace, NModal, NForm, NFormItem, NInput, NSpin
+  useMessage, NCard, NTabs, NTabPane, NUpload, NUploadDragger, NIcon, NText, NP, NEmpty, NButton, NTag, NButtonGroup, NDivider, NAlert, NSpace, NModal, NForm, NFormItem, NInput, NSpin, NInputNumber, NInputGroup, NDynamicInput
 } from 'naive-ui'
 import { ArchiveOutline } from '@vicons/ionicons5'
 import type { UploadCustomRequestOptions } from 'naive-ui'
@@ -162,6 +187,10 @@ const loadingTourney = ref(true)
 const showCreateModal = ref(false)
 const newTourneyName = ref('')
 const creating = ref(false)
+
+// Config State
+const pointsMap = ref<Record<number, number>>({ 1: 9, 2: 5, 3: 3, 4: 2, 5: 1 })
+const prizes = ref<string[]>(['200', '160', '120'])
 
 // Lifecycle
 onMounted(() => {
@@ -224,10 +253,13 @@ const handleCreate = async () => {
    if (!newTourneyName.value) return
    creating.value = true
    try {
-      // Create with default stages config
+      // Create with configured rules
       const payload = {
          name: newTourneyName.value,
-         rules_config: { "prizes": ["200", "160", "120"] },
+         rules_config: { 
+            "prizes": prizes.value,
+            "points_map": pointsMap.value
+         },
          stages_config: [
             { "name": "Audition", "stage_type": "round_robin", "rules_config": {"group_count": 14, "advancement": {"type": "top_n", "value": 4}} },
             { "name": "Group Stage 1", "stage_type": "round_robin", "rules_config": {"group_count": 13, "advancement": {"type": "top_n", "value": 4}} },
