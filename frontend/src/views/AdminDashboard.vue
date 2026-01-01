@@ -218,8 +218,11 @@ const fetchAllTournaments = async () => {
       tournaments.value = await listTournaments()
       // Auto-select first if none selected
       if (!selectedTournamentId.value && tournaments.value.length > 0) {
-         selectedTournamentId.value = tournaments.value[0].id
-         await fetchStages(selectedTournamentId.value)
+         const first = tournaments.value[0]
+         if (first) {
+            selectedTournamentId.value = first.id
+            await fetchStages(first.id)
+         }
       } else if (selectedTournamentId.value) {
          await fetchStages(selectedTournamentId.value)
       }
