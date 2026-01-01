@@ -1,135 +1,136 @@
 <template>
   <div class="admin-container">
-    <n-card :title="t('admin.dashboard_title')">
-      <n-tabs type="line">
-        
-        <n-tab-pane name="control" :tab="t('admin.tournament_control')">
-           <div v-if="loadingTourney" class="loading-state">
-              <n-spin size="medium" />
-           </div>
+    <div class="sidebar">
+       <div class="sidebar-header">
+          <h3>{{ t('admin.dashboard_title') }}</h3>
+          <n-button type="primary" size="small" @click="showCreateModal = true" block>
+             {{ t('admin.create_new') }}
+          </n-button>
+       </div>
+       <div v-if="loadingTournaments" class="loading-state-mini">
+          <n-spin size="small" />
+       </div>
+       <n-menu
+          v-else
+          :options="tournamentOptions"
+          :value="selectedTournamentId"
+          @update:value="handleTournamentSelect"
+       />
+    </div>
+
+    <div class="main-content">
+       <div v-if="!selectedTournamentId" class="empty-selection">
+          <n-empty :description="t('admin.select_tournament_hint')">
+          </n-empty>
+       </div>
+       
+       <n-card v-else :title="selectedTournament?.name || 'Tournament'">
+         <n-tabs type="line">
            
-           <div v-else-if="!tournament">
-              <n-empty :description="t('admin.no_active_tournament')">
-                 <template #extra>
-                    <n-button type="primary" @click="showCreateModal = true">
-                       {{ t('admin.create_new') }}
-                    </n-button>
-                 </template>
-              </n-empty>
-           </div>
-           
-           <div v-else class="control-panel">
-              <div class="status-card">
-                 <div class="info">
-                    <h3>{{ tournament.name }}</h3>
-                    <n-tag :type="getStatusType(tournament.status)">
-                       {{ tournament.status.toUpperCase() }}
-                    </n-tag>
+           <n-tab-pane name="control" :tab="t('admin.tournament_control')">
+              <div class="control-panel">
+                 <div class="status-card">
+                    <div class="info">
+                       <n-tag :type="getStatusType(selectedTournament?.status || 'setup')">
+                          {{ (selectedTournament?.status || '').toUpperCase() }}
+                       </n-tag>
+                       <span style="margin-left: 12px; font-size: 0.9em; color: #999;">
+                          ID: {{ selectedTournament?.id }}
+                       </span>
+                    </div>
+                    
+                    <div class="actions">
+                       <n-text depth="3">{{ t('admin.flow_control') }}</n-text>
+                       <n-button-group>
+                          <n-button 
+                             @click="updateStatus('setup')" 
+                             :type="selectedTournament?.status === 'setup' ? 'primary' : 'default'"
+                             :disabled="selectedTournament?.status === 'setup'"
+                          >
+                             {{ t('admin.setup') }}
+                          </n-button>
+                          <n-button 
+                             @click="updateStatus('active')" 
+                             :type="selectedTournament?.status === 'active' ? 'primary' : 'default'"
+                             :disabled="selectedTournament?.status === 'active'"
+                          >
+                             {{ t('admin.start_active') }}
+                          </n-button>
+                          <n-button 
+                             @click="updateStatus('completed')" 
+                             :type="selectedTournament?.status === 'completed' ? 'primary' : 'default'"
+                             :disabled="selectedTournament?.status === 'completed'"
+                          >
+                             {{ t('admin.end') }}
+                          </n-button>
+                       </n-button-group>
+                    </div>
                  </div>
                  
-                 <div class="actions">
-                    <!-- Create New Button (Only if completed) -->
-                    <n-button 
-                       v-if="tournament.status === 'completed'"
-                       type="primary" 
-                       size="small"
-                       @click="showCreateModal = true"
-                       style="margin-bottom: 8px"
-                    >
-                       {{ t('admin.create_new') }}
-                    </n-button>
-
-                    <n-text depth="3">{{ t('admin.flow_control') }}</n-text>
-                    <n-button-group>
-                       <n-button 
-                          @click="updateStatus('setup')" 
-                          :type="tournament.status === 'setup' ? 'primary' : 'default'"
-                          :disabled="tournament.status === 'setup'"
-                       >
-                          {{ t('admin.setup') }}
-                       </n-button>
-                       <n-button 
-                          @click="updateStatus('active')" 
-                          :type="tournament.status === 'active' ? 'primary' : 'default'"
-                          :disabled="tournament.status === 'active'"
-                       >
-                          {{ t('admin.start_active') }}
-                       </n-button>
-                       <n-button 
-                          @click="updateStatus('completed')" 
-                          :type="tournament.status === 'completed' ? 'primary' : 'default'"
-                          :disabled="tournament.status === 'completed'"
-                       >
-                          {{ t('admin.end') }}
-                       </n-button>
-                    </n-button-group>
-                 </div>
-              </div>
-              
-              <n-divider />
-              
-              <h3>{{ t('admin.stage_flow') }}</h3>
-              <div class="stages-list">
-                 <n-card v-for="stage in stages" :key="stage.id" size="small" style="margin-bottom: 12px">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                       <div>
-                          <strong>{{ stage.sequence_order }}. {{ stage.name }}</strong>
-                          <div style="font-size: 0.8em; opacity: 0.7">{{ stage.stage_type }}</div>
+                 <n-divider />
+                 
+                 <h3>{{ t('admin.stage_flow') }}</h3>
+                 <div class="stages-list">
+                    <n-card v-for="stage in stages" :key="stage.id" size="small" style="margin-bottom: 12px">
+                       <div style="display: flex; justify-content: space-between; align-items: center;">
+                          <div>
+                             <strong>{{ stage.sequence_order }}. {{ stage.name }}</strong>
+                             <div style="font-size: 0.8em; opacity: 0.7">{{ stage.stage_type }}</div>
+                          </div>
+                          
+                          <n-space>
+                             <n-button 
+                                size="small" 
+                                secondary 
+                                type="info"
+                                @click="handleSettle(stage.id)"
+                             >
+                                {{ t('admin.settle_next') }}
+                             </n-button>
+                          </n-space>
                        </div>
-                       
-                       <n-space>
-                          <!-- Settle Button -->
-                          <n-button 
-                             size="small" 
-                             secondary 
-                             type="info"
-                             @click="handleSettle(stage.id)"
-                          >
-                             {{ t('admin.settle_next') }}
-                          </n-button>
-                       </n-space>
-                    </div>
-                 </n-card>
-              </div>
+                    </n-card>
+                 </div>
 
-              <n-divider />
-              
-              <n-alert :title="t('admin.quick_actions')" type="info">
-                 <n-space>
-                    <n-button secondary @click="$router.push('/ceremony')">
-                       {{ t('admin.go_draw') }}
-                    </n-button>
-                    <n-button secondary @click="$router.push('/live')">
-                       {{ t('admin.go_live') }}
-                    </n-button>
-                 </n-space>
-              </n-alert>
-           </div>
-        </n-tab-pane>
-
-        <n-tab-pane name="roster" :tab="t('admin.roster_management')">
-          <n-upload
-            directory-dnd
-            :custom-request="customRequest"
-            accept=".csv"
-          >
-            <n-upload-dragger>
-              <div style="margin-bottom: 12px">
-                <n-icon size="48" :depth="3">
-                  <archive-outline />
-                </n-icon>
+                 <n-divider />
+                 
+                 <n-alert :title="t('admin.quick_actions')" type="info">
+                    <n-space>
+                       <n-button secondary @click="$router.push('/ceremony?stageId=' + (stages[0]?.id || ''))">
+                          {{ t('admin.go_draw') }}
+                       </n-button>
+                       <n-button secondary @click="$router.push('/tournament/' + selectedTournamentId)">
+                          {{ t('admin.go_live') }}
+                       </n-button>
+                    </n-space>
+                 </n-alert>
               </div>
-              <n-text style="font-size: 16px">
-                {{ t('admin.upload_instruction') }}
-              </n-text>
-              <n-p depth="3" style="margin: 8px 0 0 0">
-                {{ t('admin.upload_format') }}
-              </n-p>
-            </n-upload-dragger>
-          </n-upload>
-        </n-tab-pane>
-      </n-tabs>
-    </n-card>
+           </n-tab-pane>
+
+           <n-tab-pane name="roster" :tab="t('admin.roster_management')">
+             <n-upload
+               directory-dnd
+               :custom-request="customRequest"
+               accept=".csv"
+             >
+               <n-upload-dragger>
+                 <div style="margin-bottom: 12px">
+                   <n-icon size="48" :depth="3">
+                     <archive-outline />
+                   </n-icon>
+                 </div>
+                 <n-text style="font-size: 16px">
+                   {{ t('admin.upload_instruction') }}
+                 </n-text>
+                 <n-p depth="3" style="margin: 8px 0 0 0">
+                   {{ t('admin.upload_format') }}
+                 </n-p>
+               </n-upload-dragger>
+             </n-upload>
+           </n-tab-pane>
+         </n-tabs>
+       </n-card>
+    </div>
 
     <!-- Create Modal -->
     <n-modal v-model:show="showCreateModal" preset="card" :title="t('admin.create_modal_title')" style="width: 600px">
@@ -164,16 +165,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { 
-  useMessage, NCard, NTabs, NTabPane, NUpload, NUploadDragger, NIcon, NText, NP, NEmpty, NButton, NTag, NButtonGroup, NDivider, NAlert, NSpace, NModal, NForm, NFormItem, NInput, NSpin, NInputNumber, NInputGroup, NDynamicInput
+  useMessage, NCard, NTabs, NTabPane, NUpload, NUploadDragger, NIcon, NText, NP, NEmpty, NButton, NTag, NButtonGroup, NDivider, NAlert, NSpace, NModal, NForm, NFormItem, NInput, NSpin, NInputNumber, NInputGroup, NDynamicInput, NMenu
 } from 'naive-ui'
 import { ArchiveOutline } from '@vicons/ionicons5'
 import type { UploadCustomRequestOptions } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
-import { getCurrentTournament, createTournament, updateTournament, type Tournament } from '../api/tournaments'
+import { listTournaments, createTournament, updateTournament, type Tournament } from '../api/tournaments'
 
 const router = useRouter()
 const message = useMessage()
@@ -181,9 +182,10 @@ const auth = useAuthStore()
 const { t } = useI18n()
 
 // State
-const tournament = ref<Tournament | null>(null)
+const tournaments = ref<Tournament[]>([])
+const selectedTournamentId = ref<string | null>(null)
 const stages = ref<any[]>([])
-const loadingTourney = ref(true)
+const loadingTournaments = ref(true)
 const showCreateModal = ref(false)
 const newTourneyName = ref('')
 const creating = ref(false)
@@ -192,27 +194,50 @@ const creating = ref(false)
 const pointsMap = ref<Record<number, number>>({ 1: 9, 2: 5, 3: 3, 4: 2, 5: 1 })
 const prizes = ref<string[]>(['200', '160', '120'])
 
-// Lifecycle
-onMounted(() => {
-   fetchTournament()
-   fetchStages()
+// Computed
+const tournamentOptions = computed(() => {
+   return tournaments.value.map(t => ({
+      label: t.name,
+      key: t.id,
+      extra: t.status.toUpperCase() // Optional: show status in menu
+   }))
 })
 
-const fetchTournament = async () => {
-   loadingTourney.value = true
+const selectedTournament = computed(() => {
+   return tournaments.value.find(t => t.id === selectedTournamentId.value) || null
+})
+
+// Lifecycle
+onMounted(() => {
+   fetchAllTournaments()
+})
+
+const fetchAllTournaments = async () => {
+   loadingTournaments.value = true
    try {
-      const t = await getCurrentTournament()
-      tournament.value = t
+      tournaments.value = await listTournaments()
+      // Auto-select first if none selected
+      if (!selectedTournamentId.value && tournaments.value.length > 0) {
+         selectedTournamentId.value = tournaments.value[0].id
+         await fetchStages(selectedTournamentId.value)
+      } else if (selectedTournamentId.value) {
+         await fetchStages(selectedTournamentId.value)
+      }
    } catch (e) {
       console.error(e)
    } finally {
-      loadingTourney.value = false
+      loadingTournaments.value = false
    }
 }
 
-const fetchStages = async () => {
+const handleTournamentSelect = async (key: string) => {
+   selectedTournamentId.value = key
+   await fetchStages(key)
+}
+
+const fetchStages = async (tourneyId: string) => {
    try {
-      const res = await fetch('/api/v1/stages/')
+      const res = await fetch(`/api/v1/stages/?tournament_id=${tourneyId}`)
       if (res.ok) {
          stages.value = await res.json()
       }
@@ -267,10 +292,13 @@ const handleCreate = async () => {
             { "name": "Bracket Stage", "stage_type": "double_elimination", "rules_config": {} }
          ]
       }
-      await createTournament(auth.token!, payload)
+      const newT = await createTournament(auth.token!, payload)
       message.success(t('admin.tournament_created'))
       showCreateModal.value = false
-      await fetchTournament()
+      await fetchAllTournaments()
+      // Switch to new tournament
+      selectedTournamentId.value = newT.id
+      await fetchStages(newT.id)
    } catch (e) {
       message.error(t('admin.failed_create'))
    } finally {
@@ -279,11 +307,11 @@ const handleCreate = async () => {
 }
 
 const updateStatus = async (status: string) => {
-   if (!tournament.value) return
+   if (!selectedTournamentId.value) return
    try {
-      await updateTournament(auth.token!, tournament.value.id, { status })
+      await updateTournament(auth.token!, selectedTournamentId.value, { status })
       message.success(t('admin.status_updated', { status }))
-      await fetchTournament()
+      await fetchAllTournaments()
    } catch (e) {
       message.error(t('admin.failed_update'))
    }
@@ -319,13 +347,47 @@ const customRequest = async ({ file, onFinish, onError }: UploadCustomRequestOpt
 
 <style scoped>
 .admin-container {
-  max-width: 800px;
+  display: flex;
+  height: calc(100vh - 80px); /* Adjust based on navbar height */
+  max-width: 1400px;
   margin: 0 auto;
+  gap: 24px;
 }
-.loading-state {
-   padding: 40px;
+
+.sidebar {
+   width: 250px;
+   background: #fff;
+   border-right: 1px solid #eee;
+   display: flex;
+   flex-direction: column;
+   padding: 16px;
+   border-radius: 8px;
+   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.sidebar-header {
+   margin-bottom: 16px;
+}
+
+.sidebar-header h3 {
+   margin: 0 0 12px 0;
+   font-size: 1.2rem;
+}
+
+.main-content {
+   flex: 1;
+   overflow-y: auto;
+}
+
+.loading-state-mini {
+   padding: 20px;
    text-align: center;
 }
+
+.control-panel {
+   padding: 8px;
+}
+
 .status-card {
    display: flex;
    justify-content: space-between;
@@ -342,5 +404,13 @@ const customRequest = async ({ file, onFinish, onError }: UploadCustomRequestOpt
    flex-direction: column;
    align-items: flex-end;
    gap: 4px;
+}
+
+.empty-selection {
+   display: flex;
+   justify-content: center;
+   align-items: center;
+   height: 100%;
+   color: #999;
 }
 </style>

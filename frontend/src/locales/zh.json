@@ -56,6 +56,7 @@
     "create_modal_title": "创建赛事",
     "tournament_name": "赛事名称",
     "rules_config": "规则配置",
+    "select_tournament_hint": "请从左侧选择一个赛事进行管理",
     "points_map": "积分规则 (名次 -> 分数)",
     "prizes": "奖金设置",
     "rank_label": "第 {rank} 名",
