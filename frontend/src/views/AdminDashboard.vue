@@ -251,7 +251,7 @@ const handleSettle = async (stageId: string) => {
    try {
       const res = await fetch(`/api/v1/stages/${stageId}/settle`, {
          method: 'POST',
-         headers: { 'Authorization': `Bearer ${auth.token}` }
+         headers: { 'Authorization': `Bearer ${auth.token || ''}` }
       })
       if (!res.ok) throw new Error('Settle failed')
       
@@ -325,7 +325,7 @@ const customRequest = async ({ file, onFinish, onError }: UploadCustomRequestOpt
     const res = await fetch('/api/v1/players/import', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${auth.token}`
+        'Authorization': `Bearer ${auth.token || ''}`
       },
       body: formData
     })
