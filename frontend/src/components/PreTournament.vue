@@ -13,7 +13,6 @@
 
        <div class="checkin-action">
           <n-button 
-            type="primary" 
             size="large" 
             class="checkin-btn" 
             @click="handleCheckIn"
@@ -56,7 +55,6 @@ const message = useMessage()
 const auth = useAuthStore()
 
 const players = ref<any[]>([])
-const loading = ref(false)
 
 const isCheckedIn = computed(() => {
    if (!auth.user || !players.value) return false
