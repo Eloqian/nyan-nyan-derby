@@ -7,6 +7,7 @@ from pydantic import EmailStr
 class UserBase(SQLModel):
     username: str = Field(index=True, unique=True)
     email: Optional[EmailStr] = Field(default=None, index=True, sa_type=AutoString)
+    avatar_url: Optional[str] = Field(default=None)
     is_admin: bool = False
 
 class User(UserBase, table=True):

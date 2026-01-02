@@ -7,8 +7,8 @@
       </div>
 
       <n-form ref="formRef" :model="model" :rules="rules">
-        <n-form-item path="username" :label="t('login.username')">
-          <n-input v-model:value="model.username" :placeholder="t('login.trainer_name')" />
+        <n-form-item path="username" :label="isLogin ? t('login.username') : t('login.qq_number')">
+          <n-input v-model:value="model.username" :placeholder="isLogin ? t('login.trainer_name') : t('login.qq_number')" />
         </n-form-item>
         <n-form-item path="password" :label="t('login.password')">
           <n-input
@@ -55,7 +55,14 @@ const model = reactive({
 })
 
 const rules = computed(() => ({
-  username: { required: true, message: t('login.required'), trigger: 'blur' },
+  username: [
+    { required: true, message: t('login.required'), trigger: 'blur' },
+    { 
+      pattern: /^[0-9]{5,11}$/, 
+      message: t('login.invalid_qq'), 
+      trigger: ['input', 'blur'] 
+    }
+  ],
   password: { required: true, message: t('login.required'), trigger: 'blur' }
 }))
 

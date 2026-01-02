@@ -6,14 +6,14 @@ from app.services.user_service import UserService
 from app.core.security import create_access_token, SECRET_KEY, ALGORITHM
 from app.models.user import User
 from jose import jwt, JWTError
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
 class UserCreate(BaseModel):
-    username: str
+    username: str = Field(..., pattern=r"^[0-9]{5,11}$")
     password: str
     email: str = None
 
@@ -24,6 +24,7 @@ class Token(BaseModel):
 class UserResponse(BaseModel):
     id: str
     username: str
+    avatar_url: Optional[str] = None
     email: Optional[str] = None
     is_admin: bool = False
 
@@ -33,12 +34,26 @@ async def register(
     session: AsyncSession = Depends(get_session)
 ):
     service = UserService(session)
-    existing = await service.get_by_username(user_data.username)
-    if existing:
-        raise HTTPException(status_code=400, detail="Username already exists")
-
+    # Generate avatar URL for QQ
+    avatar_url = f"http://q1.qlogo.cn/g?b=qq&nk={user_data.username}&s=640"
+    
     user = await service.create_user(user_data.username, user_data.password, user_data.email)
-    return UserResponse(id=str(user.id), username=user.username, email=user.email, is_admin=user.is_admin)
+    user.avatar_url = avatar_url
+    await session.commit()
+    await session.refresh(user)
+    
+    # Auto-link if a player with this QQ ID exists and is not linked
+    from app.services.player_service import PlayerService
+    player_service = PlayerService(session)
+    await player_service.claim_player(user, user.username)
+    
+    return UserResponse(
+        id=str(user.id), 
+        username=user.username, 
+        avatar_url=user.avatar_url,
+        email=user.email, 
+        is_admin=user.is_admin
+    )
 
 @router.post("/login", response_model=Token)
 async def login(
@@ -55,6 +70,27 @@ async def login(
         )
     
     access_token = create_access_token(subject=user.username)
+    
+    # Auto-update avatar and link if numeric
+    if user.username.isdigit():
+        updated = False
+        if not user.avatar_url:
+            user.avatar_url = f"http://q1.qlogo.cn/g?b=qq&nk={user.username}&s=640"
+            updated = True
+        
+        # Check if linked to player
+        from app.services.player_service import PlayerService
+        player_service = PlayerService(session)
+        player = await player_service.get_player_by_qq(user.username)
+        if player and player.user_id is None:
+            player.user_id = user.id
+            session.add(player)
+            updated = True
+            
+        if updated:
+            session.add(user)
+            await session.commit()
+
     return {"access_token": access_token, "token_type": "bearer"}
 
 async def get_current_user(
@@ -84,4 +120,10 @@ async def get_current_user(
 async def read_users_me(
     current_user: User = Depends(get_current_user)
 ):
-    return UserResponse(id=str(current_user.id), username=current_user.username, email=current_user.email, is_admin=current_user.is_admin)
+    return UserResponse(
+        id=str(current_user.id), 
+        username=current_user.username, 
+        avatar_url=current_user.avatar_url,
+        email=current_user.email, 
+        is_admin=current_user.is_admin
+    )

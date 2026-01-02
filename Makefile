@@ -2,6 +2,7 @@
 
 dev:
 	docker-compose up --build
+	docker image prune -f
 
 db-migrate:
 	docker-compose exec backend alembic upgrade head
@@ -14,12 +15,14 @@ clean:
 
 deploy:
 	docker-compose -f docker-compose.prod.yml up --build -d
+	docker image prune -f
 
 deploy-down:
 	docker-compose -f docker-compose.prod.yml down
 
 update:
 	docker-compose -f docker-compose.prod.yml up --build -d backend frontend
+	docker image prune -f
 
 logs:
 	docker-compose -f docker-compose.prod.yml logs -f

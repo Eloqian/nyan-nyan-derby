@@ -1,6 +1,19 @@
 <template>
   <div class="profile-container">
-    <n-card :title="`${t('profile.title')}: ${auth.user?.username}`" style="margin-bottom: 24px;">
+    <n-card style="margin-bottom: 24px;">
+      <template #header>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <n-avatar
+            round
+            :size="64"
+            :src="auth.user?.avatar_url"
+            fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg"
+          />
+          <div style="font-size: 1.5rem; font-weight: bold;">
+            {{ auth.user?.username }}
+          </div>
+        </div>
+      </template>
       <div class="stats-row">
         <n-statistic :label="t('profile.role')" :value="auth.user?.is_admin ? t('profile.role_admin') : t('profile.role_trainer')" />
         <n-statistic :label="t('profile.bound_player')" :value="boundPlayerName || t('profile.none')" />
@@ -56,7 +69,7 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
-import { useMessage, NCard, NStatistic, NInput, NInputGroup, NButton, NDivider, NSpin, NEmpty, NIcon } from 'naive-ui'
+import { useMessage, NCard, NStatistic, NInput, NInputGroup, NButton, NDivider, NSpin, NEmpty, NIcon, NAvatar } from 'naive-ui'
 import { Refresh } from '@vicons/ionicons5'
 import { getMyMatches, type MatchResponse } from '../api/matches'
 import PlayerMatchCard from '../components/PlayerMatchCard.vue'

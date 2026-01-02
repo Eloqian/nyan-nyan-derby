@@ -4,6 +4,7 @@ import { ref, computed } from 'vue'
 interface User {
   id: string
   username: string
+  avatar_url?: string
   email?: string
   is_admin: boolean
 }
@@ -22,7 +23,7 @@ export const useAuthStore = defineStore('auth', () => {
         body: formData, // Sending form data
       })
       if (!res.ok) throw new Error('Login failed')
-      
+
       const data = await res.json()
       token.value = data.access_token
       localStorage.setItem('token', data.access_token)
@@ -35,13 +36,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function register(jsonBody: any) {
-     const res = await fetch('/api/v1/auth/register', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(jsonBody)
-     })
-     if (!res.ok) throw new Error('Registration failed')
-     return true
+    const res = await fetch('/api/v1/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jsonBody)
+    })
+    if (!res.ok) throw new Error('Registration failed')
+    return true
   }
 
   async function fetchUser() {
