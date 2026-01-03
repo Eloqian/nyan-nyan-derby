@@ -1,66 +1,100 @@
 <template>
-  <div class="profile-container">
-    <n-card style="margin-bottom: 24px;">
-      <template #header>
-        <div style="display: flex; align-items: center; gap: 16px;">
-          <n-avatar
-            round
-            :size="64"
-            :src="auth.user?.avatar_url"
-            fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg"
-          />
-          <div style="font-size: 1.5rem; font-weight: bold;">
-            {{ auth.user?.username }}
+  <div class="profile-screen">
+    
+    <!-- Header / Banner -->
+    <div class="profile-header">
+       <div class="header-bg"></div>
+       <div class="header-content">
+          <div class="user-identity">
+             <n-avatar
+                round
+                :size="100"
+                :src="auth.user?.avatar_url"
+                fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg"
+                class="user-avatar"
+             />
+             <div class="user-text">
+                <h1 class="username">{{ auth.user?.username }}</h1>
+                <div class="user-role-badge">
+                   {{ auth.user?.is_admin ? t('profile.role_admin') : t('profile.role_trainer') }}
+                </div>
+             </div>
           </div>
-        </div>
-      </template>
-      <div class="stats-row">
-        <n-statistic :label="t('profile.role')" :value="auth.user?.is_admin ? t('profile.role_admin') : t('profile.role_trainer')" />
-        <n-statistic :label="t('profile.bound_player')" :value="boundPlayerName || t('profile.none')" />
-      </div>
-    </n-card>
-
-    <!-- Claim Section -->
-    <n-card :title="t('profile.bind_account')" v-if="!boundPlayerName && !loadingPlayer">
-      <p>{{ t('profile.qq_verify_prompt') }}</p>
-      <n-input-group>
-        <n-input v-model:value="qqId" :placeholder="t('profile.enter_qq_id')" />
-        <n-button type="primary" @click="handleClaim" :loading="claiming">
-          {{ t('profile.bind_btn') }}
-        </n-button>
-      </n-input-group>
-    </n-card>
-    
-    <!-- Matches Section -->
-    <div v-if="boundPlayerName">
-      <div class="section-header">
-        <h2>{{ t('profile.my_matches') }}</h2>
-        <n-button size="small" secondary circle @click="fetchMatches">
-          <template #icon><n-icon><Refresh /></n-icon></template>
-        </n-button>
-      </div>
-      
-      <div v-if="matchesLoading && matches.length === 0" class="loading-state">
-         <n-spin size="large" />
-      </div>
-      
-      <div v-else-if="matches.length === 0" class="empty-state">
-         <n-empty :description="t('profile.no_matches')" />
-      </div>
-
-      <div v-else class="matches-grid">
-         <PlayerMatchCard 
-           v-for="match in matches" 
-           :key="match.id" 
-           :match="match" 
-           @room-updated="fetchMatches"
-         />
-      </div>
+       </div>
     </div>
-    
-    <n-divider />
-    
-    <n-button type="error" ghost @click="logout">{{ t('nav.logout') }}</n-button>
+
+    <div class="profile-layout">
+       
+       <!-- Left Sidebar: Stats & Actions -->
+       <div class="profile-sidebar">
+          
+          <!-- Stats Card -->
+          <div class="sidebar-card">
+             <h3 class="sidebar-title">TRAINER INFO</h3>
+             <div class="info-list">
+                <div class="info-item">
+                   <span class="label">{{ t('profile.bound_player') }}</span>
+                   <span class="value highlight">{{ boundPlayerName || t('profile.none') }}</span>
+                </div>
+                <!-- Future stats could go here -->
+             </div>
+          </div>
+
+          <!-- Bind Account (If needed) -->
+          <div class="sidebar-card highlight-border" v-if="!boundPlayerName && !loadingPlayer">
+             <h3 class="sidebar-title">{{ t('profile.bind_account') }}</h3>
+             <p class="helper-text">{{ t('profile.qq_verify_prompt') }}</p>
+             <n-input-group>
+                <n-input v-model:value="qqId" :placeholder="t('profile.enter_qq_id')" />
+                <n-button type="primary" color="#FFC800" text-color="#333" @click="handleClaim" :loading="claiming" style="font-weight: bold;">
+                  {{ t('profile.bind_btn') }}
+                </n-button>
+             </n-input-group>
+          </div>
+
+          <!-- Actions -->
+          <div class="sidebar-actions">
+             <n-button type="error" secondary block strong @click="logout" size="large">
+                {{ t('nav.logout') }}
+             </n-button>
+          </div>
+       </div>
+
+       <!-- Right Content: Matches -->
+       <div class="profile-main">
+          <div class="section-header-modern">
+             <div class="title-group">
+                <span class="section-icon">⚔️</span>
+                <h2 class="section-title">{{ t('profile.my_matches') }}</h2>
+             </div>
+             <n-button size="medium" secondary circle @click="fetchMatches">
+                <template #icon><n-icon><Refresh /></n-icon></template>
+             </n-button>
+          </div>
+
+          <div v-if="matchesLoading && matches.length === 0" class="loading-state">
+             <n-spin size="large" stroke="#67C05D" />
+          </div>
+          
+          <div v-else-if="matches.length === 0" class="empty-state-modern">
+             <div class="empty-content">
+                <n-empty :description="t('profile.no_matches')" size="large" />
+                <p class="empty-hint">Join a tournament to see your upcoming races here!</p>
+             </div>
+          </div>
+
+          <div v-else class="matches-grid-modern">
+             <PlayerMatchCard 
+               v-for="match in matches" 
+               :key="match.id" 
+               :match="match" 
+               @room-updated="fetchMatches"
+               class="match-item"
+             />
+          </div>
+       </div>
+
+    </div>
   </div>
 </template>
 
@@ -69,10 +103,11 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
-import { useMessage, NCard, NStatistic, NInput, NInputGroup, NButton, NDivider, NSpin, NEmpty, NIcon, NAvatar } from 'naive-ui'
+import { useMessage, NInput, NInputGroup, NButton, NSpin, NEmpty, NIcon, NAvatar } from 'naive-ui'
 import { Refresh } from '@vicons/ionicons5'
 import { getMyMatches, type MatchResponse } from '../api/matches'
 import PlayerMatchCard from '../components/PlayerMatchCard.vue'
+
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -105,6 +140,8 @@ const fetchMatches = async () => {
     const data = await getMyMatches(auth.token)
     matches.value = data
     if (data.length > 0) {
+       // Ideally the API returns the bound player name separately, but inferring for now
+       // or if we had a proper profile endpoint. For now, if they have matches, they are bound.
        boundPlayerName.value = "Trainer" 
     }
   } catch (e) {
@@ -150,27 +187,180 @@ const logout = () => {
 </script>
 
 <style scoped>
-.profile-container {
-  max-width: 800px;
+.profile-screen {
+  width: 100%;
+  min-height: 100vh;
+  padding-bottom: 60px;
+}
+
+/* Header */
+.profile-header {
+  position: relative;
+  height: 200px;
+  background: white;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+  overflow: hidden;
+}
+.header-bg {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(120deg, #e0f7fa 0%, #ffffff 100%);
+  opacity: 0.6;
+}
+.header-bg::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: radial-gradient(#4FB3FF 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 0.2;
+}
+
+.header-content {
+  position: relative;
+  max-width: 1800px;
   margin: 0 auto;
-}
-.stats-row {
+  height: 100%;
   display: flex;
-  gap: 32px;
+  align-items: center;
+  padding: 0 5%;
 }
-.section-header {
+
+.user-identity {
+  display: flex;
+  align-items: center;
+  gap: 20px; /* Space between avatar and text */
+}
+
+.user-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.username {
+  font-size: 2.2rem;
+  font-weight: 900; /* Make username bolder */
+  color: #333;
+  margin: 0;
+}
+
+.user-role-badge {
+  background: var(--uma-green);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  display: inline-block; /* Ensure it takes only necessary width */
+  margin-top: 5px; /* Add some space above the badge */
+}
+
+
+
+/* Layout */
+.profile-layout {
+  max-width: 1800px;
+  margin: 0 auto;
+  margin-top: 40px;
+  padding: 0 5%;
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  gap: 40px;
+  position: relative;
+  z-index: 2;
+}
+@media (max-width: 1024px) {
+  .profile-layout { grid-template-columns: 1fr; padding: 0 5%; }
+  .profile-header { padding: 0; height: auto; padding-bottom: 60px; }
+  .header-content { flex-direction: column; align-items: center; text-align: center; padding-top: 40px; }
+  .user-identity { flex-direction: column; gap: 16px; }
+  .profile-sidebar { margin-top: 0; }
+  .username {
+    font-size: 1.8rem; /* Adjusted for smaller screens */
+  }
+}
+
+/* Sidebar */
+.profile-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.sidebar-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border: 1px solid #f0f0f0;
+}
+.sidebar-card.highlight-border {
+  border: 2px solid var(--uma-gold);
+}
+.sidebar-title {
+  margin: 0 0 16px 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #888;
+  letter-spacing: 1px;
+}
+.helper-text {
+  font-size: 0.9rem; color: #666; margin-bottom: 12px;
+}
+
+.info-list {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.info-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed #eee;
+}
+.info-item:last-child { border-bottom: none; padding-bottom: 0; }
+.label { font-weight: bold; color: #555; }
+.value { font-weight: 900; font-size: 1.1rem; }
+.value.highlight { color: var(--uma-green); }
+
+/* Main Content */
+.profile-main {
+  /* No top margin needed */
+}
+.section-header-modern {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 24px 0 16px;
+  margin-bottom: 24px;
 }
-.matches-grid {
+.title-group { display: flex; align-items: center; gap: 12px; }
+.section-icon { font-size: 2rem; }
+.section-title {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #3E3838;
+  margin: 0;
+  font-style: italic;
+  text-shadow: 2px 2px 0 white;
+}
+
+.matches-grid-modern {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
 }
-.loading-state, .empty-state {
-  padding: 40px;
+.match-item {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transition: transform 0.2s;
+}
+.match-item:hover { transform: translateY(-4px); }
+
+.empty-state-modern {
+  background: rgba(255,255,255,0.6);
+  backdrop-filter: blur(10px);
+  padding: 60px;
+  border-radius: 20px;
   text-align: center;
+  border: 2px dashed #ddd;
 }
+.empty-hint { color: #888; font-weight: bold; margin-top: 16px; }
 </style>

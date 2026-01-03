@@ -31,6 +31,16 @@
 
     <n-divider />
 
+    <!-- Rules Section -->
+    <div class="rules-section" v-if="tournament?.rules_content">
+       <h3>{{ t('live.rules_title', 'Tournament Rules') }}</h3>
+       <div class="rules-content custom-scroll">
+          <div class="markdown-body" v-html="renderedRules"></div>
+       </div>
+    </div>
+
+    <n-divider />
+
     <div class="wall-section">
        <h3>{{ t('live.trainer_wall') }} ({{ participants.length }})</h3>
        <div class="trainer-wall">
@@ -49,6 +59,7 @@
 import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, NDivider, useMessage } from 'naive-ui'
+import MarkdownIt from 'markdown-it'
 import { useAuthStore } from '../stores/auth'
 import { 
   checkInTournament, 
@@ -64,6 +75,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const message = useMessage()
 const auth = useAuthStore()
+const md = new MarkdownIt()
 
 const participants = ref<TournamentParticipant[]>([])
 const checkingIn = ref(false)
@@ -71,10 +83,13 @@ const now = ref(Date.now())
 let timerInterval: any = null
 
 const isCheckedIn = computed(() => {
-   // Simplified check: we'd need to know current user's player ID. 
-   // For now, relies on session state or check-in response if we implemented it fully.
-   // Just returning false so button is always clickable (API handles duplicate checkin error).
+   // Simplified check
    return false 
+})
+
+const renderedRules = computed(() => {
+   if (!props.tournament?.rules_content) return ''
+   return md.render(props.tournament.rules_content)
 })
 
 onMounted(async () => {
@@ -85,6 +100,7 @@ onMounted(async () => {
       await loadParticipants()
    }
 })
+// ... (rest of the script)
 
 watch(() => props.tournament, async (newVal) => {
    if (newVal) {
@@ -151,7 +167,7 @@ const getAvatarColor = (name: string) => {
 .pre-tournament {
    text-align: center;
    padding: 40px 20px;
-   max-width: 800px;
+   max-width: 100%;
    margin: 0 auto;
 }
 .main-title {
@@ -231,11 +247,55 @@ const getAvatarColor = (name: string) => {
    width: 100%;
 }
 .rules-content {
-   white-space: pre-wrap; 
    line-height: 1.6; 
    text-align: left;
    background: #f9f9f9;
    padding: 20px;
    border-radius: 8px;
+}
+.markdown-body :deep(h1), .markdown-body :deep(h2) {
+  border-bottom: 1px solid #eaecef;
+  padding-bottom: 0.3em;
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.markdown-body :deep(h3) {
+  font-size: 1.25em;
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+.markdown-body :deep(p) {
+  margin-bottom: 16px;
+  line-height: 1.8;
+}
+.markdown-body :deep(ul), .markdown-body :deep(ol) {
+  padding-left: 2em;
+  margin-bottom: 16px;
+}
+.markdown-body :deep(li) {
+  margin-bottom: 4px;
+}
+.markdown-body :deep(blockquote) {
+  margin: 0 0 16px;
+  padding: 0 1em;
+  color: #6a737d;
+  border-left: 0.25em solid #dfe2e5;
+}
+.markdown-body :deep(code) {
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  background-color: rgba(27,31,35,0.05);
+  border-radius: 3px;
+}
+.markdown-body :deep(a) {
+  color: #0366d6;
+  text-decoration: none;
+}
+.markdown-body :deep(a:hover) {
+  text-decoration: underline;
 }
 </style>

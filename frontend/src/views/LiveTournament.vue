@@ -1,24 +1,20 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { 
-  NTabs, NTabPane, NMenu, NDataTable, NCard, NTag, NButton, NModal, NCheckbox, NAlert, NDivider, NSpin, NEmpty, NSpace, NText, useMessage, NInputGroup, NInput
+  useMessage, NSpin, NModal, NCheckbox, NInputGroup, NInput, NButton
 } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 import { getStageMatchesView, submitMatchResult } from '../api/stages'
 import { updateRoomNumber } from '../api/matches'
 import { getCurrentTournament, listTournaments, type Tournament } from '../api/tournaments'
 import PreTournament from '../components/PreTournament.vue'
-import MarkdownIt from 'markdown-it' // Import markdown-it
 
-const API_BASE_URL = '/api/v1'
 const auth = useAuthStore()
 const message = useMessage()
 const route = useRoute()
 const { t } = useI18n()
-const md = new MarkdownIt() // Create a MarkdownIt instance
 
 // Data State
 const tournament = ref<Tournament | null>(null)
@@ -27,17 +23,15 @@ const activeStageId = ref<string>('')
 const activeGroupData = ref<any[]>([])
 const activeGroupId = ref<string>('')
 const loading = ref(false)
+const stageLoading = ref(false)
 
 // Init
 onMounted(async () => {
    try {
      loading.value = true
-     // Check if tournamentId is provided in route
      const tournamentId = route.params.tournamentId as string | undefined
      
-     // 1. Fetch Tournament Details
      if (tournamentId) {
-        // Since backend missing GET /:id, we list all and find (Inefficient but works for small scale)
         const all = await listTournaments()
         tournament.value = all.find(t => t.id === tournamentId) || null
      } else {
@@ -49,94 +43,78 @@ onMounted(async () => {
         return
      }
 
-     // 2. Fetch Stages
-     let url = `${API_BASE_URL}/stages/`
+     // Fetch Stages
+     let url = `/api/v1/stages/`
      if (tournament.value.id) {
        url += `?tournament_id=${tournament.value.id}`
      }
      
      const res = await fetch(url)
      if (res.ok) {
-        stages.value = await res.json()
-        if (stages.value.length > 0) {
-           activeStageId.value = stages.value[0].id // Default to first
-           await loadStageData(activeStageId.value)
+        const fetchedStages = await res.json()
+        // Inject "INFO" tab
+        stages.value = [{ id: 'info', name: 'INFO', status: 'always' }, ...fetchedStages]
+        
+        if (fetchedStages.length > 0) {
+           // If we have stages, try to find active one, otherwise stay on info or first stage?
+           // Actually, if a stage is active, better to show it. If not, show Info.
+           const activeOrFirst = fetchedStages.find((s: any) => s.status === 'active')
+           if (activeOrFirst) {
+              activeStageId.value = activeOrFirst.id
+           } else {
+              activeStageId.value = 'info'
+           }
+        } else {
+           activeStageId.value = 'info'
         }
      }
    } catch (e) {
       console.error(e)
    } finally {
-      // Only set loading false if we are not waiting for stage data (which has its own loading)
-      // But here we want to show global loading until we know if we are in PreTournament or Live
       loading.value = false
    }
 })
 
-const defaultTab = computed(() => {
-   return tournament.value?.status === 'setup' ? 'overview' : 'matches'
+// Watch stage change to load data
+watch(activeStageId, (newId) => {
+  if (newId && newId !== 'info') loadStageData(newId)
 })
 
-const renderedRulesContent = computed(() => {
-  return tournament.value?.rules_content ? md.render(tournament.value.rules_content) : ''
-})
-
-// Stage Logic
 const loadStageData = async (stageId: string) => {
-   loading.value = true
+   stageLoading.value = true
    try {
       activeGroupData.value = await getStageMatchesView(stageId)
+      // Default select first group if not set or invalid
       if (activeGroupData.value.length > 0) {
-         activeGroupId.value = activeGroupData.value[0].id
+         // Try to keep current group selection if valid, else first
+         if (!activeGroupId.value || !activeGroupData.value.find(g => g.id === activeGroupId.value)) {
+            activeGroupId.value = activeGroupData.value[0].id
+         }
+      } else {
+         activeGroupId.value = ''
       }
    } catch (e) {
-      message.error(t('live.load_fail'))
+      message.error("Failed to load stage data")
    } finally {
-      loading.value = false
+      stageLoading.value = false
    }
-}
-
-// Navigation Logic
-const groupMenuOptions = computed(() => {
-   return activeGroupData.value.map(g => ({
-      label: g.name,
-      key: g.id
-   }))
-})
-
-const handleGroupChange = (key: string) => {
-   activeGroupId.value = key
 }
 
 const currentGroup = computed(() => {
-   return activeGroupData.value.find(g => g.id === activeGroupId.value)
+   return activeGroupData.value.find(g => g.id === activeGroupId.value) || activeGroupData.value[0]
 })
 
-// Table Config
-const standingsColumns = computed<DataTableColumns>(() => [
-   { title: t('live.rank'), key: 'rank', width: 60 },
-   { title: t('live.player'), key: 'player_name' },
-   { title: t('live.pts'), key: 'total_points', sorter: 'default' },
-   { title: t('live.wins'), key: 'wins' }
-])
+const currentStage = computed<any>(() => stages.value.find(s => s.id === activeStageId.value))
 
-// Match Helpers
-const getStatusType = (status: string) => {
-   if (status === 'finished') return 'success'
-   if (status === 'active') return 'warning'
-   return 'default'
-}
+const isElimination = computed(() => {
+  // @ts-ignore
+  return (currentStage.value as any)?.stage_type?.includes('elimination') ?? false
+})
 
-const getSortedResults = (results: any[]) => {
-   return [...results].sort((a,b) => a.rank - b.rank)
-}
-
-const getPlayerName = (match: any, playerId: string) => {
-   const p = match.participants.find((mp: any) => mp.player.id === playerId)
-   return p ? p.player.name : 'Unknown'
-}
-
-const canEdit = () => {
-   return auth.isAuthenticated
+// --- Helpers ---
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return ''
+  return new Date(dateStr).toLocaleDateString()
 }
 
 // --- Matrix Editing Logic ---
@@ -150,82 +128,54 @@ const openResultModal = (match: any) => {
    const state: Record<string, number[]> = {}
    match.participants.forEach((p: any) => {
       state[p.player.id] = []
+      // Pre-fill existing results
+      match.results?.forEach((r: any) => {
+        if (r.player_id === p.player.id) {
+             state[p.player.id]!.push(r.rank)
+        }
+      })
    })
    selectionState.value = state
    showModal.value = true
 }
 
+// @ts-ignore
 const isRankSelected = (pid: string, rank: number) => {
-   return selectionState.value[pid]?.includes(rank)
-}
-
-const isRankDisabled = (pid: string, rank: number) => {
-   const state = selectionState.value
-   const currentList = state[pid] || []
-   
-   for (const otherPid in state) {
-      if (otherPid !== pid && state[otherPid]?.includes(rank)) return true
-   }
-   
-   if (!currentList.includes(rank) && currentList.length >= 3) return true
-   return false
+  const list = selectionState.value[pid]
+  return list ? list.includes(rank) : false
 }
 
 const toggleRank = (pid: string, rank: number, checked: boolean) => {
    if (!selectionState.value[pid]) selectionState.value[pid] = []
    if (checked) {
-      selectionState.value[pid].push(rank)
+      // Ensure single selection for rank if needed, but logic allows multiple for now
+      // Let's enforce unique rank per match? No, let admin decide.
+      selectionState.value[pid]!.push(rank)
    } else {
-      selectionState.value[pid] = selectionState.value[pid].filter(r => r !== rank)
+      selectionState.value[pid] = selectionState.value[pid]!.filter(r => r !== rank)
    }
 }
-
-const getProjectedScore = (pid: string) => {
-   const ranks = selectionState.value[pid] || []
-   const pointsMap: Record<number, number> = { 1:9, 2:5, 3:3, 4:2, 5:1 }
-   let total = 0
-   ranks.forEach(r => total += (pointsMap[r] || 0))
-   return total
-}
-
-const getOrdinal = (n: number) => {
-   const s = ["th", "st", "nd", "rd"]
-   const v = n % 100
-   return s[(v - 20) % 10] || s[v] || s[0]
-}
-
-const isValidResult = computed(() => {
-   const allRanks: number[] = []
-   Object.values(selectionState.value).forEach(list => allRanks.push(...list))
-   if (allRanks.length !== 5) return false
-   const set = new Set(allRanks)
-   return set.size === 5 && set.has(1) && set.has(5)
-})
 
 const submitResult = async () => {
    if (!editingMatch.value) return
    submitting.value = true
-   
    const rankings: any[] = []
    for (const [pid, ranks] of Object.entries(selectionState.value)) {
-      ranks.forEach(r => {
-         rankings.push({ player_id: pid, rank: r })
-      })
+      ranks.forEach(r => rankings.push({ player_id: pid, rank: r }))
    }
-   
    try {
       await submitMatchResult(auth.token!, editingMatch.value.id, rankings)
-      message.success(t('live.result_saved'))
+      message.success("Result Saved")
       showModal.value = false
       await loadStageData(activeStageId.value)
    } catch (e) {
-      message.error(t('live.save_fail'))
+      message.error("Failed to save")
    } finally {
       submitting.value = false
    }
 }
 
-// --- Room Number Logic ---
+// --- Room Logic ---
 const showRoomModal = ref(false)
 const editingRoomMatch = ref<any>(null)
 const roomInput = ref('')
@@ -242,11 +192,11 @@ const saveRoomNumber = async () => {
    updatingRoom.value = true
    try {
       await updateRoomNumber(auth.token, editingRoomMatch.value.id, roomInput.value)
-      message.success(t('live.room_updated'))
+      message.success("Room Updated")
       showRoomModal.value = false
       await loadStageData(activeStageId.value)
    } catch (e) {
-      message.error(t('live.save_fail'))
+      message.error("Failed")
    } finally {
       updatingRoom.value = false
    }
@@ -254,171 +204,219 @@ const saveRoomNumber = async () => {
 </script>
 
 <template>
-  <div class="live-container">
-    <div class="header-section">
-      <h2>{{ t('live.title') }}</h2>
-      <n-text depth="3">{{ t('live.subtitle') }}</n-text>
+  <div class="live-screen-container">
+    
+    <!-- Hero Header (Compact & Flat) -->
+    <div class="tournament-hero-compact">
+       <div class="hero-overlay"></div>
+       <div class="hero-content-compact">
+          <div class="hero-left">
+             <div class="status-row">
+                <span class="live-badge" v-if="tournament?.status === 'active'">
+                   <span class="pulse-dot"></span> LIVE NOW
+                </span>
+                <span class="date-badge">{{ formatDate(tournament?.created_at || '') }}</span>
+             </div>
+             <h1 class="hero-title-compact">{{ tournament?.name || 'Tournament' }}</h1>
+          </div>
+          <div class="hero-right">
+             <div class="hero-subtitle-compact">{{ t('nav.live_subtitle', 'Official Match Center') }}</div>
+          </div>
+       </div>
     </div>
 
-    <div v-if="loading" class="loading-area">
-      <n-spin size="large" />
+    <!-- Stage Navigation (Sticky Tabs) -->
+    <div class="stage-nav-bar">
+       <div class="nav-scroll-container">
+          <div 
+             v-for="(stage, index) in stages" 
+             :key="stage.id" 
+             class="nav-tab"
+             :class="{ active: activeStageId === stage.id }"
+             @click="activeStageId = stage.id"
+          >
+             <span class="tab-idx">{{ index + 1 }}</span>
+             <span class="tab-name">{{ stage.name }}</span>
+          </div>
+       </div>
     </div>
 
-    <div v-else-if="tournament">
-       <n-tabs type="segment" animated :default-value="defaultTab">
-          <!-- Overview Tab -->
-          <n-tab-pane name="overview" :tab="t('live.tab_overview')">
-             <PreTournament :tournament="tournament" />
-          </n-tab-pane>
+    <!-- Main Content (Full Width) -->
+    <div class="content-wrapper" v-if="!loading && activeStageId !== 'info'">
+       
+       <!-- Group Tabs (If multiple) -->
+       <div v-if="activeGroupData.length > 1" class="group-filter-bar">
+          <button 
+             v-for="g in activeGroupData" 
+             :key="g.id"
+             class="group-filter-btn"
+             :class="{ active: activeGroupId === g.id }"
+             @click="activeGroupId = g.id"
+          >
+             {{ g.name }}
+          </button>
+       </div>
 
-          <!-- Match Tab -->
-          <n-tab-pane name="matches" :tab="t('live.tab_matches')" :disabled="stages.length === 0">
-             <n-tabs type="card" v-model:value="activeStageId" @update:value="loadStageData" style="margin-top: 16px">
-               <n-tab-pane v-for="stage in stages" :key="stage.id" :name="stage.id" :tab="stage.name" />
-             </n-tabs>
-             
-             <div v-if="activeGroupData.length > 0" class="content-split">
-                <!-- Left: Group List -->
-                <div class="group-sidebar">
-                  <n-menu 
-                    :options="groupMenuOptions" 
-                    v-model:value="activeGroupId"
-                    @update:value="handleGroupChange"
-                  />
+       <!-- Active View -->
+       <div v-if="currentGroup" class="stage-view-layout">
+          
+          <!-- LEFT: Standings (Fixed Width) -->
+          <div class="layout-sidebar">
+             <div class="standings-panel-modern">
+                <div class="panel-header-modern">
+                   <span class="icon">🏆</span> RANKING
                 </div>
-
-                <!-- Right: Detail View -->
-                <div class="group-detail">
-                  <div v-if="currentGroup" class="detail-wrapper">
-                    <div class="group-header">
-                      <h3>{{ currentGroup.name }} {{ t('live.standings') }}</h3>
-                    </div>
-                    
-                    <!-- Standings Table -->
-                    <n-data-table 
-                      :columns="standingsColumns" 
-                      :data="currentGroup.standings" 
-                      size="small"
-                      :single-line="false"
-                    />
-
-                    <n-divider />
-
-                    <!-- Match List -->
-                    <h3>{{ t('live.matches') }}</h3>
-                    <div class="matches-list">
-                       <div v-for="match in currentGroup.matches" :key="match.id" class="match-item">
-                         <n-card size="small" :bordered="true">
-                           <div class="match-row">
-                              <div class="match-info">
-                                 <strong>{{ match.name }}</strong>
-                                 <n-tag :type="getStatusType(match.status)" size="tiny" style="margin-left: 8px">
-                                   {{ match.status }}
-                                 </n-tag>
-                              </div>
-                              
-                              <div class="action-area" v-if="canEdit()">
-                                 <n-space>
-                                    <!-- Room Button -->
-                                    <n-button 
-                                       size="small" 
-                                       :type="match.room_number ? 'default' : 'warning'" 
-                                       dashed 
-                                       @click="openRoomModal(match)"
-                                    >
-                                       <template v-if="match.room_number">🏠 {{ match.room_number }}</template>
-                                       <template v-else>{{ t('live.set_room') }}</template>
-                                    </n-button>
-
-                                    <n-button size="small" type="primary" secondary @click="openResultModal(match)">
-                                      {{ t('live.result') }}
-                                    </n-button>
-                                 </n-space>
-                              </div>
-                           </div>
-                           
-                           <!-- Simple Result Preview -->
-                           <div v-if="match.results && match.results.length > 0" class="result-preview">
-                              <n-space>
-                                 <n-tag v-for="res in getSortedResults(match.results)" :key="res.player_id" size="small" :color="{ color: '#fafafa', textColor: '#333', borderColor: '#eee' }">
-                                    <template #icon>
-                                       <span style="font-weight:bold; color:#fbc02d" v-if="res.rank===1">🥇</span>
-                                       <span style="font-weight:bold; color:#9e9e9e" v-else-if="res.rank===2">🥈</span>
-                                       <span style="font-weight:bold; color:#a1887f" v-else-if="res.rank===3">🥉</span>
-                                       <span v-else>{{ res.rank }}.</span>
-                                    </template>
-                                    {{ getPlayerName(match, res.player_id) }} (+{{ res.points }})
-                                 </n-tag>
-                              </n-space>
-                           </div>
-                         </n-card>
-                       </div>
-                    </div>
-                  </div>
+                <div class="standings-list-modern custom-scroll">
+                   <div 
+                      v-for="p in currentGroup.standings" 
+                      :key="p.player_id" 
+                      class="standing-item"
+                      :class="{'top-rank': p.rank <= 3}"
+                   >
+                      <div class="rank-num">{{ p.rank }}</div>
+                      <div class="p-info">
+                         <div class="p-name">{{ p.player_name }}</div>
+                         <div class="p-stats">{{ p.wins }} Wins</div>
+                      </div>
+                      <div class="p-points">{{ p.total_points }} <small>pts</small></div>
+                   </div>
                 </div>
              </div>
-             <n-empty v-else :description="t('live.no_data')" />
-          </n-tab-pane>
+          </div>
 
-          <!-- Rules Tab -->
-          <n-tab-pane name="rules" :tab="t('live.tab_rules')">
-             <n-card>
-                <div v-if="tournament?.rules_content" class="markdown-content" v-html="renderedRulesContent"></div>
-                <n-empty v-else :description="t('live.no_rules')" />
-             </n-card>
-          </n-tab-pane>
-       </n-tabs>
+          <!-- RIGHT: Matches (Flexible Grid) -->
+          <div class="layout-main">
+             
+             <!-- ELIMINATION / KNOCKOUT STYLE (Special Design) -->
+             <div v-if="isElimination" class="knockout-section">
+                <div class="section-title">
+                   <span class="icon">⚔️</span> ELIMINATION STAGE
+                </div>
+                <div class="knockout-track">
+                   <div v-for="match in currentGroup.matches" :key="match.id" class="knockout-duel-card">
+                      <div class="duel-header">
+                         <span class="match-name">{{ match.name }}</span>
+                         <div class="room-indicator" v-if="match.room_number" @click="openRoomModal(match)">
+                            ROOM: <strong>{{ match.room_number }}</strong>
+                         </div>
+                         <div class="room-indicator empty" v-else-if="auth.isAuthenticated" @click="openRoomModal(match)">
+                            + ROOM
+                         </div>
+                         <div class="status-badge" :class="match.status">{{ match.status }}</div>
+                      </div>
+                      
+                      <div class="duel-arena">
+                         <!-- 3-Way Battle Layout -->
+                         <div class="duel-competitors">
+                            <div 
+                               v-for="p in match.participants" 
+                               :key="p.player.id"
+                               class="competitor-slot"
+                               :class="{ 
+                                  'winner': match.results.some((r: any) => r.player_id === p.player.id && r.rank === 1),
+                                  'is-host': match.host_player_id === p.player.id
+                               }"
+                            >
+                               <div class="slot-rank" v-if="match.status === 'finished'">
+                                  {{ match.results.find((r:any) => r.player_id === p.player.id)?.rank || '-' }}
+                               </div>
+                               <div class="slot-avatar">
+                                  {{ p.player.name.charAt(0) }}
+                               </div>
+                               <div class="slot-info">
+                                  <div class="c-name">{{ p.player.name }}</div>
+                               </div>
+                            </div>
+                         </div>
+                      </div>
+
+                      <div class="duel-actions" v-if="auth.isAuthenticated">
+                         <button class="action-btn" @click="openResultModal(match)">UPDATE RESULT</button>
+                      </div>
+                   </div>
+                </div>
+             </div>
+
+             <!-- REGULAR / GROUP STYLE -->
+             <div v-else class="regular-section">
+                <div class="section-title">
+                   <span class="icon">🏁</span> MATCH LIST
+                </div>
+                <div class="regular-grid">
+                   <div v-for="match in currentGroup.matches" :key="match.id" class="match-card-modern" :class="match.status">
+                      <div class="card-status-strip" :class="match.status"></div>
+                      <div class="m-header">
+                         <span class="m-title">{{ match.name }}</span>
+                         <span 
+                            class="m-room" 
+                            :class="{'has-room': match.room_number}" 
+                            @click="openRoomModal(match)"
+                         >
+                            {{ match.room_number ? `🔑 ${match.room_number}` : 'No Room' }}
+                         </span>
+                      </div>
+                      
+                      <div class="m-body">
+                         <div 
+                            v-for="p in match.participants" 
+                            :key="p.player.id" 
+                            class="m-player"
+                            :class="{ 'host': match.host_player_id === p.player.id }"
+                         >
+                            <div class="mp-avatar">{{ p.player.name.charAt(0) }}</div>
+                            <div class="mp-name">{{ p.player.name }}</div>
+                            <div class="mp-rank" v-if="match.status === 'finished'">
+                               #{{ match.results.find((r:any) => r.player_id === p.player.id)?.rank }}
+                            </div>
+                         </div>
+                      </div>
+
+                      <div class="m-footer" v-if="auth.isAuthenticated">
+                         <button class="m-btn" @click="openResultModal(match)">Record</button>
+                      </div>
+                   </div>
+                </div>
+             </div>
+
+          </div>
+
+       </div>
+
+    </div>
+
+    <!-- INFO / PRE-TOURNAMENT TAB -->
+    <div v-else-if="activeStageId === 'info'" class="pre-tournament-wrapper">
+       <PreTournament :tournament="tournament" />
     </div>
     
-    <n-empty v-else :description="t('live.no_data')" />
+    <div v-if="stageLoading" class="loading-overlay">
+       <n-spin size="large" stroke="#67C05D" />
+    </div>
 
-    <!-- Result Input Modal -->
-    <n-modal v-model:show="showModal" preset="card" :title="t('live.update_result')" style="width: 600px">
+    <!-- Modals -->
+    <n-modal v-model:show="showModal" preset="card" title="Update Result" style="width: 500px">
        <div v-if="editingMatch">
-          <n-alert type="info" style="margin-bottom: 16px">
-             <div v-html="t('live.instructions')"></div>
-          </n-alert>
-
-          <table class="matrix-table">
-             <thead>
-                <tr>
-                   <th>{{ t('live.player') }}</th>
-                   <th v-for="r in 5" :key="r">{{ r }}{{ getOrdinal(r) }}</th>
-                </tr>
-             </thead>
-             <tbody>
-                <tr v-for="p in editingMatch.participants" :key="p.player.id">
-                   <td class="player-cell">
-                      <strong>{{ p.player.name }}</strong>
-                      <div class="live-score">
-                         {{ t('live.current_score', { score: getProjectedScore(p.player.id) }) }}
-                      </div>
-                   </td>
-                   <td v-for="r in 5" :key="r" class="check-cell">
-                      <n-checkbox 
-                         :checked="isRankSelected(p.player.id, r)"
-                         @update:checked="(v) => toggleRank(p.player.id, r, v)"
-                         :disabled="isRankDisabled(p.player.id, r)"
-                      />
-                   </td>
-                </tr>
-             </tbody>
-          </table>
-          
-          <div class="modal-footer" style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
-             <n-button @click="showModal = false">{{ t('admin.cancel') }}</n-button>
-             <n-button type="primary" @click="submitResult" :loading="submitting" :disabled="!isValidResult">
-                {{ t('live.confirm_save') }}
-             </n-button>
+          <div class="modal-rows">
+             <div v-for="p in editingMatch.participants" :key="p.player.id" class="m-row">
+                <span class="name">{{ p.player.name }}</span>
+                <div class="checks">
+                   <n-checkbox v-for="r in 5" :key="r" :label="String(r)" 
+                      :checked="isRankSelected(p.player.id, r)"
+                      @update:checked="(v) => toggleRank(p.player.id, r, v)"
+                   />
+                </div>
+             </div>
+          </div>
+          <div style="text-align: right; margin-top: 20px;">
+             <n-button type="primary" @click="submitResult" :loading="submitting">Confirm Result</n-button>
           </div>
        </div>
     </n-modal>
 
-    <!-- Room Number Modal -->
-    <n-modal v-model:show="showRoomModal" preset="card" :title="t('live.update_room')" style="width: 400px">
+    <n-modal v-model:show="showRoomModal" preset="card" title="Room Number" style="width: 400px">
        <n-input-group>
-          <n-input v-model:value="roomInput" :placeholder="t('live.enter_room')" autofocus />
-          <n-button type="primary" @click="saveRoomNumber" :loading="updatingRoom">{{ t('live.save') }}</n-button>
+          <n-input v-model:value="roomInput" placeholder="Enter Room ID" />
+          <n-button type="primary" @click="saveRoomNumber" :loading="updatingRoom">Save</n-button>
        </n-input-group>
     </n-modal>
 
@@ -426,129 +424,424 @@ const saveRoomNumber = async () => {
 </template>
 
 <style scoped>
-.live-container {
-   max-width: 1200px;
-   margin: 0 auto;
-   padding: 16px;
-}
-.header-section {
-   margin-bottom: 24px;
-}
-.content-split {
-   display: flex;
-   gap: 24px;
-   min-height: 500px;
-}
-.group-sidebar {
-   width: 200px;
-   border-right: 1px solid #eee;
-}
-.group-detail {
-   flex: 1;
-}
-.matches-list {
-   display: flex;
-   flex-direction: column;
-   gap: 12px;
-   margin-top: 12px;
-}
-.match-row {
-   display: flex;
-   justify-content: space-between;
-   align-items: center;
-}
-.result-preview {
-   margin-top: 12px;
-   padding-top: 12px;
-   border-top: 1px dashed #eee;
+/* --- Container --- */
+.live-screen-container {
+  width: 100%;
+  min-height: 100vh;
+  background-color: transparent;
+  padding-bottom: 80px;
 }
 
-/* Matrix Table */
-.matrix-table {
-   width: 100%;
-   border-collapse: collapse;
+/* --- Hero Section (Compact) --- */
+.tournament-hero-compact {
+  height: 160px;
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 4rem;
+  background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%);
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255,255,255,0.5);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
 }
-.matrix-table th, .matrix-table td {
-   border: 1px solid #eee;
-   padding: 12px;
-   text-align: center;
+.hero-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: 
+    linear-gradient(45deg, rgba(103, 192, 93, 0.05) 25%, transparent 25%), 
+    linear-gradient(-45deg, rgba(103, 192, 93, 0.05) 25%, transparent 25%);
+  background-size: 60px 60px;
+  z-index: 0;
 }
-.matrix-table th {
-   background: #f9f9f9;
-}
-.player-cell {
-   text-align: left;
-   width: 180px;
-}
-.live-score {
-   font-size: 0.8em;
-   color: #7CB342;
-   font-weight: bold;
-}
-.check-cell {
-   cursor: pointer;
-}
-.check-cell:hover {
-   background: #f5f5f5;
-}
-
-.markdown-content :deep(h1), .markdown-content :deep(h2), .markdown-content :deep(h3) {
-  margin-top: 1em;
-  margin-bottom: 0.5em;
-  font-weight: bold;
+.hero-content-compact {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1800px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.markdown-content :deep(h1) { font-size: 1.8em; }
-.markdown-content :deep(h2) { font-size: 1.5em; }
-.markdown-content :deep(h3) { font-size: 1.2em; }
+.hero-left { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
 
-.markdown-content :deep(p) {
-  margin-bottom: 1em;
-  line-height: 1.6;
-}
-
-.markdown-content :deep(ul) {
-  list-style-type: disc;
-  padding-left: 20px;
-  margin-bottom: 1em;
-}
-
-.markdown-content :deep(ol) {
-  list-style-type: decimal;
-  padding-left: 20px;
-  margin-bottom: 1em;
-}
-
-.markdown-content :deep(li) {
-  margin-bottom: 0.5em;
-}
-
-.markdown-content :deep(strong) {
-  font-weight: bold;
-}
-
-.markdown-content :deep(em) {
+.hero-title-compact {
+  font-family: 'M PLUS Rounded 1c', sans-serif;
+  font-size: 2.5rem;
+  font-weight: 900;
   font-style: italic;
+  color: var(--uma-blue);
+  margin: 0;
+  text-shadow: 2px 2px 0px white, 3px 3px 0px rgba(0,0,0,0.05);
+  line-height: 1;
+  text-transform: uppercase;
+}
+.hero-subtitle-compact {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #777;
+  background: rgba(255,255,255,0.6);
+  padding: 4px 16px;
+  border-radius: 20px;
+}
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.live-badge {
+  background: #FF5252;
+  color: white;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-weight: 800;
+  font-size: 0.75rem;
+  display: flex; align-items: center; gap: 6px;
+}
+.pulse-dot {
+  width: 6px; height: 6px; background: white; border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+.date-badge {
+  background: #444;
+  color: white;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+@media (max-width: 768px) {
+  .tournament-hero-compact { padding: 1rem 1.5rem; height: auto; }
+  .hero-content-compact { flex-direction: column; align-items: flex-start; gap: 1rem; }
 }
 
-.markdown-content :deep(pre), .markdown-content :deep(code) {
-  font-family: 'Fira Code', monospace;
-  background-color: #f6f8fa;
-  border-radius: 6px;
-  padding: 0.2em 0.4em;
-  font-size: 0.9em;
+/* --- Stage Navigation --- */
+.stage-nav-bar {
+  background: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  position: sticky;
+  top: 0; /* Or 64px if header is fixed */
+  z-index: 10;
+  padding: 0 1rem;
 }
-
-.markdown-content :deep(pre) {
-  padding: 1em;
+.nav-scroll-container {
+  display: flex;
+  justify-content: center;
+  max-width: 1800px;
+  margin: 0 auto;
   overflow-x: auto;
+  gap: 2rem;
+}
+.nav-tab {
+  padding: 1rem 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #999;
+  border-bottom: 4px solid transparent;
+  transition: all 0.2s;
+}
+.nav-tab:hover { color: #555; }
+.nav-tab.active {
+  color: var(--uma-blue);
+  border-bottom-color: var(--uma-blue);
+}
+.tab-idx {
+  background: #eee;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: flex; justify-content: center; align-items: center;
+  font-size: 0.75rem; font-weight: bold;
+}
+.nav-tab.active .tab-idx {
+  background: var(--uma-blue);
+  color: white;
+}
+.tab-name { font-weight: 800; font-size: 1rem; text-transform: uppercase; }
+
+/* --- Content Wrapper --- */
+.content-wrapper {
+  width: 100%;
+  max-width: 1800px; /* Match content wrapper */
+  margin: 0 auto;
+  padding: 2rem;
+  box-sizing: border-box;
 }
 
-.markdown-content :deep(blockquote) {
-  border-left: 4px solid #dfe2e5;
-  color: #6a737d;
-  margin-left: 0;
-  padding-left: 1em;
+@media (max-width: 768px) {
+  .content-wrapper { padding: 1rem; }
+  .group-filter-bar { gap: 8px; }
+  .group-filter-btn { padding: 6px 16px; font-size: 0.9rem; }
 }
 
+/* Filter Bar */
+.group-filter-bar {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+.group-filter-btn {
+  background: rgba(255,255,255,0.7);
+  border: 2px solid transparent;
+  padding: 8px 24px;
+  border-radius: 20px;
+  font-weight: 700;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(5px);
+}
+.group-filter-btn:hover { background: white; }
+.group-filter-btn.active {
+  background: white;
+  border-color: var(--uma-blue);
+  color: var(--uma-blue);
+  box-shadow: 0 4px 10px rgba(79, 179, 255, 0.2);
+}
+
+/* Layout Grid */
+.stage-view-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+@media (max-width: 1024px) {
+  .stage-view-layout { grid-template-columns: 1fr; }
+  .layout-sidebar { display: none; /* Hide standings on mobile for now or move to bottom */ }
+}
+
+/* Sidebar (Standings) */
+.standings-panel-modern {
+  background: rgba(255,255,255,0.9);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.6);
+}
+.panel-header-modern {
+  background: linear-gradient(90deg, #3E3838 0%, #555 100%);
+  color: white;
+  padding: 1rem;
+  font-weight: 900;
+  font-style: italic;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 1.1rem;
+}
+.standings-list-modern {
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+.standing-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  transition: background 0.2s;
+}
+.standing-item:hover { background: rgba(0,0,0,0.02); }
+.standing-item.top-rank { background: linear-gradient(90deg, rgba(255, 200, 0, 0.1), transparent); }
+.rank-num {
+  width: 28px; height: 28px;
+  background: #eee;
+  color: #888;
+  border-radius: 6px;
+  display: flex; justify-content: center; align-items: center;
+  font-weight: 800;
+  margin-right: 12px;
+}
+.top-rank .rank-num { background: var(--uma-gold); color: #3E3838; }
+.p-info { flex: 1; }
+.p-name { font-weight: bold; font-size: 0.95rem; color: #333; }
+.p-stats { font-size: 0.75rem; color: #999; }
+.p-points { font-weight: 900; font-size: 1.1rem; color: var(--uma-green); text-align: right; }
+
+/* Main Content Section Styles */
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #3E3838;
+  margin-bottom: 1.5rem;
+  display: flex; align-items: center; gap: 8px;
+  opacity: 0.8;
+}
+
+/* --- Regular Matches Grid --- */
+.regular-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+.match-card-modern {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+  border: 1px solid #f0f0f0;
+}
+.match-card-modern:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+}
+.card-status-strip { height: 4px; width: 100%; background: #eee; }
+.card-status-strip.active { background: #FF5252; }
+.card-status-strip.finished { background: var(--uma-green); }
+
+.m-header {
+  padding: 12px 16px;
+  display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px dashed #f0f0f0;
+}
+.m-title { font-weight: 800; font-size: 0.9rem; color: #888; }
+.m-room {
+  font-size: 0.75rem; padding: 2px 8px; border-radius: 12px;
+  background: #f5f5f5; color: #bbb; cursor: pointer; font-weight: bold;
+}
+.m-room.has-room { background: var(--uma-blue); color: white; }
+
+.m-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.m-player {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px; border-radius: 8px;
+}
+.m-player.host { background: rgba(0,0,0,0.02); border: 1px solid #eee; }
+.mp-avatar {
+  width: 32px; height: 32px;
+  background: #ddd; border-radius: 50%;
+  display: flex; justify-content: center; align-items: center;
+  font-weight: bold; color: #555;
+  font-size: 0.8rem;
+}
+.mp-name { font-weight: bold; font-size: 0.95rem; color: #444; flex: 1; }
+.mp-rank { font-weight: 900; font-size: 1.1rem; color: #333; }
+
+.m-footer { padding: 12px; text-align: center; background: #fcfcfc; border-top: 1px solid #f0f0f0; }
+.m-btn {
+  background: var(--uma-green); color: white; border: none;
+  padding: 6px 20px; border-radius: 20px; font-weight: bold; cursor: pointer;
+  font-size: 0.85rem;
+}
+
+/* --- Elimination / Knockout (3-Way) --- */
+.knockout-track {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+  gap: 2rem;
+}
+.knockout-duel-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  overflow: hidden;
+  border: 1px solid rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+}
+.duel-header {
+  background: #222;
+  color: white;
+  padding: 12px 20px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.match-name { font-weight: 900; font-size: 1rem; color: #ddd; }
+.room-indicator {
+  background: rgba(255,255,255,0.15); padding: 4px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;
+}
+.room-indicator.empty { border: 1px dashed rgba(255,255,255,0.3); background: transparent; }
+.status-badge {
+  font-size: 0.7rem; font-weight: bold; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; background: #444;
+}
+.status-badge.active { background: #FF5252; color: white; }
+.status-badge.finished { background: var(--uma-green); color: white; }
+
+.duel-arena {
+  padding: 20px;
+  background: linear-gradient(to bottom, #f9f9f9, white);
+  flex: 1;
+}
+.duel-competitors {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+}
+/* Connectors could be added here */
+.competitor-slot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.competitor-slot.winner {
+  border-color: var(--uma-gold);
+  background: #FFFDE7;
+  transform: scale(1.02);
+  z-index: 2;
+  box-shadow: 0 4px 12px rgba(255, 200, 0, 0.2);
+}
+.competitor-slot.winner::after {
+  content: '🏆';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.5rem;
+  opacity: 0.2;
+}
+
+.slot-rank {
+  font-size: 1.5rem; font-weight: 900; color: #ccc; width: 30px; text-align: center;
+}
+.competitor-slot.winner .slot-rank { color: var(--uma-gold); }
+
+.slot-avatar {
+  width: 40px; height: 40px; background: #eee; border-radius: 50%;
+  display: flex; justify-content: center; align-items: center;
+  font-weight: bold; color: #666; font-size: 1rem;
+}
+.slot-info { flex: 1; }
+.c-name { font-weight: 800; font-size: 1.1rem; color: #333; }
+
+.duel-actions {
+  padding: 12px; text-align: center; border-top: 1px solid #eee;
+}
+.action-btn {
+  background: #333; color: white; border: none; padding: 8px 24px; border-radius: 6px;
+  font-weight: bold; cursor: pointer; width: 100%;
+  transition: background 0.2s;
+}
+.action-btn:hover { background: #555; }
+
+/* Empty State */
+.empty-state-modern {
+  height: 50vh;
+  display: flex; justify-content: center; align-items: center;
+}
+.empty-content {
+  background: rgba(255,255,255,0.8);
+  backdrop-filter: blur(10px);
+  padding: 3rem;
+  border-radius: 20px;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+}
+.empty-content h2 { margin-top: 0; color: var(--uma-blue); }
+
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 </style>

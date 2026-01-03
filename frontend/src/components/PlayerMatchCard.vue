@@ -1,64 +1,61 @@
 <template>
-  <n-card class="match-card" :class="{ 'host-card': match.is_host }">
-    <template #header>
+  <div class="uma-card" :class="{ 'active': match.is_host }">
+    <!-- Header -->
+    <div class="card-upper" :class="match.is_host ? 'active-bg' : 'setup-bg'" style="height: auto; min-height: 50px; padding: 12px;">
       <div class="card-header">
-        <n-tag :type="match.is_host ? 'success' : 'default'" size="small" round>
-          {{ match.is_host ? 'YOU ARE HOST' : 'GUEST' }}
-        </n-tag>
-        <span class="match-title">{{ match.stage_name }} - {{ match.name }}</span>
-      </div>
-    </template>
-
-    <div class="opponents-section">
-      <n-text depth="3" size="small">VS Opponents:</n-text>
-      <div class="opponents-list">
-        <n-tag v-for="opp in match.opponent_names" :key="opp" size="small" :bordered="false" type="info">
-          {{ opp }}
-        </n-tag>
+        <span class="role-badge">{{ match.is_host ? 'HOST' : 'GUEST' }}</span>
+        <span class="match-title-text">{{ match.stage_name }} - {{ match.name }}</span>
       </div>
     </div>
 
-    <n-divider style="margin: 12px 0" />
-
-    <div class="room-section">
-      <!-- Host View: Input -->
-      <div v-if="match.is_host">
-        <n-text strong>🏠 Room Number (Required)</n-text>
-        <n-input-group style="margin-top: 8px;">
-          <n-input 
-            v-model:value="localRoomNumber" 
-            placeholder="Ex: 123456" 
-            :status="!localRoomNumber ? 'warning' : undefined"
-          />
-          <n-button type="primary" @click="saveRoom" :loading="saving" :disabled="!localRoomNumber || localRoomNumber === match.room_number">
-            Update
-          </n-button>
-        </n-input-group>
-      </div>
-
-      <!-- Guest View: Display -->
-      <div v-else>
-        <div v-if="match.room_number" class="room-display">
-          <n-text depth="3">Room Number:</n-text>
-          <div class="room-code">{{ match.room_number }}</div>
-          <n-button size="tiny" secondary type="info" @click="copyRoom">Copy</n-button>
+    <div class="card-content">
+        <!-- Opponents -->
+        <div class="opponents-section">
+            <n-text depth="3" size="small" style="font-weight: bold;">VS Opponents:</n-text>
+            <div class="opponents-list">
+                <div v-for="opp in match.opponent_names" :key="opp" class="opp-tag">
+                {{ opp }}
+                </div>
+            </div>
         </div>
-        <div v-else class="waiting-room">
-          <n-spin size="small" v-if="false" /> 
-          <n-text depth="3" italic>Waiting for host to create room...</n-text>
+
+        <div class="divider-line"></div>
+
+        <div class="room-section">
+        <!-- Host View: Input -->
+        <div v-if="match.is_host">
+            <n-text strong>🏠 Room Number</n-text>
+            <n-input-group style="margin-top: 8px;">
+            <n-input 
+                v-model:value="localRoomNumber" 
+                placeholder="Ex: 123456" 
+                :status="!localRoomNumber ? 'warning' : undefined"
+            />
+            <n-button type="primary" @click="saveRoom" :loading="saving" :disabled="!localRoomNumber || localRoomNumber === match.room_number">
+                Update
+            </n-button>
+            </n-input-group>
         </div>
-      </div>
+
+        <!-- Guest View: Display -->
+        <div v-else>
+            <div v-if="match.room_number" class="room-display">
+            <span style="font-size: 0.8rem; color: #666;">ROOM:</span>
+            <div class="room-code">{{ match.room_number }}</div>
+            <button class="copy-btn" @click="copyRoom">Copy</button>
+            </div>
+            <div v-else class="waiting-room">
+            <n-text depth="3" italic>Waiting for host...</n-text>
+            </div>
+        </div>
+        </div>
     </div>
-    
-    <template #action>
-       <!-- Future: Add 'Submit Result' button here -->
-    </template>
-  </n-card>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { NCard, NTag, NText, NInput, NInputGroup, NButton, NDivider, NSpin, useMessage } from 'naive-ui'
+import { NText, NInput, NInputGroup, NButton, useMessage } from 'naive-ui'
 import type { MatchResponse } from '../api/matches'
 import { updateRoomNumber } from '../api/matches'
 import { useAuthStore } from '../stores/auth'
@@ -102,48 +99,79 @@ const copyRoom = () => {
 </script>
 
 <style scoped>
-.match-card {
-  transition: all 0.2s;
-}
-.host-card {
-  border-color: #7CB342;
-  border-width: 2px;
-}
 .card-header {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
-.match-title {
-  font-weight: bold;
+.role-badge {
+  background: rgba(0,0,0,0.2);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 900;
+  font-size: 0.7rem;
+}
+.match-title-text {
+  font-weight: 800;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.1);
   font-size: 0.95rem;
 }
+
 .opponents-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 4px;
 }
+.opp-tag {
+  background: #f0f0f0;
+  color: #555;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.divider-line {
+  height: 1px;
+  background: #eee;
+  margin: 12px 0;
+}
+
 .room-display {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: #f5f5f5;
+  gap: 8px;
+  background: #E3F2FD;
   padding: 8px 12px;
   border-radius: 8px;
+  border: 1px solid #BBDEFB;
 }
 .room-code {
   font-family: monospace;
   font-size: 1.2rem;
-  font-weight: bold;
-  color: #333;
-  letter-spacing: 2px;
+  font-weight: 900;
+  color: #1976D2;
+  letter-spacing: 1px;
 }
+.copy-btn {
+  margin-left: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+}
+
 .waiting-room {
-  background: #fff8e1;
+  background: #FFFDE7;
   padding: 8px;
   border-radius: 8px;
   text-align: center;
-  border: 1px dashed #ffb300;
+  border: 1px dashed #FFD600;
 }
 </style>

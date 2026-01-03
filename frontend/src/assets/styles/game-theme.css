@@ -1,0 +1,290 @@
+/* Nyan Nyan Derby - Uma Musume Inspired Theme V2 */
+
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap');
+
+:root {
+  /* Uma Palette */
+  --uma-green: #67C05D; /* Classic Turf Green */
+  --uma-green-light: #9FE296;
+  --uma-pink: #FF7696; /* Energetic Pink */
+  --uma-blue: #4FB3FF; /* Sky Blue */
+  --uma-gold: #FFC800; /* Victory Gold */
+  --uma-purple: #9C27B0; /* G1 Race Purple */
+  --uma-dark: #3E3838;
+  
+  /* UI Colors */
+  --bg-color: #F2F5F9;
+  --card-bg: #FFFFFF;
+}
+
+body {
+  font-family: 'M PLUS Rounded 1c', sans-serif; /* Rounded font for that Anime UI feel */
+  background-color: var(--bg-color);
+  color: var(--uma-dark);
+  /* Subtle diamond pattern background */
+  background-image: 
+    linear-gradient(45deg, #eaeff5 25%, transparent 25%), 
+    linear-gradient(-45deg, #eaeff5 25%, transparent 25%), 
+    linear-gradient(45deg, transparent 75%, #eaeff5 75%), 
+    linear-gradient(-45deg, transparent 75%, #eaeff5 75%);
+  background-size: 40px 40px;
+  background-position: 0 0, 0 20px, 20px -20px, -20px 0px;
+  overflow-x: hidden;
+}
+
+/* 
+  ---------------------------
+  UI COMPONENTS 
+  ---------------------------
+*/
+
+/* 1. The "Uma Button" - Glossy and Pop */
+.game-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: white;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 30px; /* Pill shape */
+  padding: 10px 24px;
+  background: linear-gradient(180deg, var(--uma-green) 0%, #4FA845 100%);
+  box-shadow: 
+    0 4px 0 #3A8E32, /* 3D bottom */
+    0 6px 4px rgba(0,0,0,0.2); /* Shadow */
+  transition: all 0.1s;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.2);
+  overflow: hidden;
+}
+
+/* Shine effect */
+.game-btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 50%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.4), transparent);
+  border-radius: 30px 30px 0 0;
+}
+
+.game-btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 #3A8E32, inset 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.game-btn.secondary {
+  background: linear-gradient(180deg, var(--uma-blue) 0%, #2196F3 100%);
+  box-shadow: 0 4px 0 #1976D2, 0 6px 4px rgba(0,0,0,0.2);
+}
+.game-btn.secondary:active { box-shadow: 0 0 0 #1976D2, inset 0 2px 4px rgba(0,0,0,0.2); }
+
+.game-btn.warning {
+  background: linear-gradient(180deg, var(--uma-gold) 0%, #FFA000 100%);
+  box-shadow: 0 4px 0 #FF6F00, 0 6px 4px rgba(0,0,0,0.2);
+}
+.game-btn.warning:active { box-shadow: 0 0 0 #FF6F00, inset 0 2px 4px rgba(0,0,0,0.2); }
+
+.game-btn.small {
+  padding: 6px 16px;
+  font-size: 0.8rem;
+  border-radius: 20px;
+}
+
+
+/* 2. Section Headers - "Race Banner" Style */
+.section-header-wrapper {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+  position: relative;
+}
+
+.section-icon {
+  font-size: 2rem;
+  margin-right: -10px;
+  z-index: 2;
+  filter: drop-shadow(2px 2px 0px rgba(0,0,0,0.1));
+}
+
+.section-title-strip {
+  background: var(--uma-pink);
+  color: white;
+  padding: 8px 30px 8px 25px;
+  border-radius: 4px;
+  transform: skewX(-15deg);
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.1);
+  display: inline-block;
+}
+
+.section-title-strip span {
+  display: block;
+  transform: skewX(15deg); /* Unskew text */
+  font-weight: 900;
+  font-size: 1.4rem;
+  letter-spacing: 0.05em;
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.1);
+}
+
+/* 3. Cards - "Support Card" Style */
+.uma-card {
+  background: white;
+  border-radius: 12px;
+  border: 4px solid white; /* Inner white frame */
+  box-shadow: 
+    0 0 0 2px #E0E0E0, /* Outer thin border */
+    0 4px 12px rgba(0,0,0,0.1);
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+
+.uma-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 
+    0 0 0 2px var(--uma-green), /* Highlight border */
+    0 12px 20px rgba(0,0,0,0.15);
+}
+
+/* Rarity/Status Borders */
+.uma-card.active { box-shadow: 0 0 0 2px var(--uma-green), 0 4px 12px rgba(103, 192, 93, 0.3); }
+.uma-card.setup { box-shadow: 0 0 0 2px var(--uma-gold), 0 4px 12px rgba(255, 200, 0, 0.3); }
+.uma-card.completed { box-shadow: 0 0 0 2px #B0BEC5, 0 4px 12px rgba(0,0,0,0.1); filter: grayscale(0.8); }
+
+.card-upper {
+  height: 80px;
+  background: #f0f0f0;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Decorative pattern for card header */
+.card-upper::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: linear-gradient(45deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent);
+  background-size: 20px 20px;
+}
+
+.card-upper.active-bg { background: linear-gradient(135deg, var(--uma-green) 0%, #43A047 100%); }
+.card-upper.setup-bg { background: linear-gradient(135deg, var(--uma-gold) 0%, #FF8F00 100%); }
+.card-upper.completed-bg { background: linear-gradient(135deg, #CFD8DC 0%, #90A4AE 100%); }
+
+.card-status-badge {
+  position: absolute;
+  top: 8px;
+  right: -30px;
+  background: #FF5252;
+  color: white;
+  font-weight: bold;
+  font-size: 0.7rem;
+  padding: 4px 30px;
+  transform: rotate(45deg);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  z-index: 10;
+}
+
+.card-content {
+  padding: 16px;
+}
+
+.card-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin: 0 0 8px 0;
+  line-height: 1.3;
+  color: var(--uma-dark);
+}
+
+.card-meta {
+  font-size: 0.9rem;
+  color: #757575;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 4. Hero Banner - "Gacha Banner" Style */
+.gacha-banner {
+  background: radial-gradient(circle at center, #FFFFFF 0%, #E3F2FD 100%);
+  border-radius: 20px;
+  padding: 40px;
+  position: relative;
+  overflow: hidden;
+  border: 4px solid white;
+  box-shadow: 0 8px 0 rgba(0,0,0,0.05), 0 0 0 4px var(--uma-blue); /* Double border */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Speed lines effect */
+.gacha-banner::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-radial-gradient(circle at 50% 50%, transparent 0, transparent 20px, rgba(79, 179, 255, 0.05) 21px, transparent 22px);
+  z-index: 0;
+}
+
+.gacha-text {
+  position: relative;
+  z-index: 2;
+  max-width: 60%;
+}
+
+.gacha-title {
+  font-size: 3rem;
+  font-weight: 900;
+  color: var(--uma-blue);
+  /* Text Outline Effect */
+  -webkit-text-stroke: 6px white;
+  paint-order: stroke fill;
+  filter: drop-shadow(4px 4px 0 rgba(0,0,0,0.1));
+  margin: 0;
+  font-style: italic;
+  line-height: 1.1;
+}
+.gacha-title span {
+  display: block;
+  font-size: 1.5rem;
+  color: var(--uma-pink);
+  -webkit-text-stroke: 4px white;
+  margin-bottom: 5px;
+}
+
+.gacha-subtitle {
+  font-size: 1.1rem;
+  background: white;
+  color: var(--uma-dark);
+  padding: 8px 16px;
+  border-radius: 20px;
+  display: inline-block;
+  margin-top: 16px;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+/* 5. Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1; 
+}
+::-webkit-scrollbar-thumb {
+  background: var(--uma-green-light); 
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--uma-green); 
+}

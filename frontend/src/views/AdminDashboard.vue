@@ -1,9 +1,9 @@
 <template>
   <div class="admin-container">
-    <div class="sidebar">
+    <div class="sidebar uma-card" style="border-radius: 8px;">
        <div class="sidebar-header">
           <h3>{{ t('admin.dashboard_title') }}</h3>
-          <n-button type="primary" size="small" @click="openCreateModal" block>
+          <n-button type="primary" size="small" @click="openCreateModal" block color="#67C05D">
              <template #icon><n-icon><Add /></n-icon></template>
              {{ t('admin.create_new') }}
           </n-button>
@@ -25,121 +25,129 @@
           </n-empty>
        </div>
        
-       <n-card v-else :title="selectedTournament?.name || 'Tournament'">
-         <n-tabs type="line">
-           
-           <n-tab-pane name="control" :tab="t('admin.tournament_control')">
-              <div class="control-panel">
-                 <div class="status-card">
-                    <div class="info">
-                       <n-tag :type="getStatusType(selectedTournament?.status || 'setup')">
-                          {{ (selectedTournament?.status || '').toUpperCase() }}
-                       </n-tag>
-                       <span style="margin-left: 12px; font-size: 0.9em; color: #999;">
-                          ID: {{ selectedTournament?.id }}
-                       </span>
-                    </div>
-                    
-                    <div class="actions">
-                       <n-button 
-                          size="small"
-                          secondary
-                          @click="openEditModal"
-                          style="margin-bottom: 8px"
-                       >
-                          {{ t('admin.edit_settings') }}
-                       </n-button>
+       <!-- Main Panel -->
+       <div v-else class="uma-card" style="min-height: 600px;">
+         <div class="card-upper active-bg" style="height: 60px; padding: 0 20px; display: flex; align-items: center; justify-content: flex-start;">
+             <h2 style="margin: 0; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">{{ selectedTournament?.name || 'Tournament' }}</h2>
+         </div>
+         
+         <div class="card-content">
+            <n-tabs type="line" animated>
+            
+            <n-tab-pane name="control" :tab="t('admin.tournament_control')">
+               <div class="control-panel">
+                  <div class="status-card" :class="selectedTournament?.status">
+                     <div class="info">
+                        <n-tag :type="getStatusType(selectedTournament?.status || 'setup')">
+                           {{ (selectedTournament?.status || '').toUpperCase() }}
+                        </n-tag>
+                        <span style="margin-left: 12px; font-size: 0.9em; font-weight: bold; opacity: 0.7;">
+                           ID: {{ selectedTournament?.id }}
+                        </span>
+                     </div>
+                     
+                     <div class="actions">
+                        <n-button 
+                           size="small"
+                           secondary
+                           @click="openEditModal"
+                           style="margin-bottom: 8px"
+                        >
+                           {{ t('admin.edit_settings') }}
+                        </n-button>
 
-                       <n-text depth="3">{{ t('admin.flow_control') }}</n-text>
-                       <n-button-group>
-                          <n-button 
-                             @click="updateStatus('setup')" 
-                             :type="selectedTournament?.status === 'setup' ? 'primary' : 'default'"
-                             :disabled="selectedTournament?.status === 'setup'"
-                          >
-                             {{ t('admin.setup') }}
-                          </n-button>
-                          <n-button 
-                             @click="updateStatus('active')" 
-                             :type="selectedTournament?.status === 'active' ? 'primary' : 'default'"
-                             :disabled="selectedTournament?.status === 'active'"
-                          >
-                             {{ t('admin.start_active') }}
-                          </n-button>
-                          <n-button 
-                             @click="updateStatus('completed')" 
-                             :type="selectedTournament?.status === 'completed' ? 'primary' : 'default'"
-                             :disabled="selectedTournament?.status === 'completed'"
-                          >
-                             {{ t('admin.end') }}
-                          </n-button>
-                       </n-button-group>
-                    </div>
-                 </div>
-                 
-                 <n-divider />
-                 
-                 <h3>{{ t('admin.stage_flow') }}</h3>
-                 <div class="stages-list">
-                    <n-card v-for="stage in stages" :key="stage.id" size="small" style="margin-bottom: 12px">
-                       <div style="display: flex; justify-content: space-between; align-items: center;">
-                          <div>
-                             <strong>{{ stage.sequence_order }}. {{ stage.name }}</strong>
-                             <div style="font-size: 0.8em; opacity: 0.7">{{ stage.stage_type }}</div>
-                          </div>
-                          
-                          <n-space>
-                             <n-button 
-                                size="small" 
-                                secondary 
-                                type="info"
-                                @click="handleSettle(stage.id)"
-                             >
-                                {{ t('admin.settle_next') }}
-                             </n-button>
-                          </n-space>
-                       </div>
-                    </n-card>
-                 </div>
+                        <n-text depth="3" style="font-size: 0.8rem; text-transform: uppercase; font-weight: bold;">{{ t('admin.flow_control') }}</n-text>
+                        <n-button-group>
+                           <n-button 
+                              @click="updateStatus('setup')" 
+                              :type="selectedTournament?.status === 'setup' ? 'primary' : 'default'"
+                              :disabled="selectedTournament?.status === 'setup'"
+                           >
+                              {{ t('admin.setup') }}
+                           </n-button>
+                           <n-button 
+                              @click="updateStatus('active')" 
+                              :type="selectedTournament?.status === 'active' ? 'primary' : 'default'"
+                              :disabled="selectedTournament?.status === 'active'"
+                           >
+                              {{ t('admin.start_active') }}
+                           </n-button>
+                           <n-button 
+                              @click="updateStatus('completed')" 
+                              :type="selectedTournament?.status === 'completed' ? 'primary' : 'default'"
+                              :disabled="selectedTournament?.status === 'completed'"
+                           >
+                              {{ t('admin.end') }}
+                           </n-button>
+                        </n-button-group>
+                     </div>
+                  </div>
+                  
+                  <n-divider />
+                  
+                  <h3>{{ t('admin.stage_flow') }}</h3>
+                  <div class="stages-list">
+                     <div v-for="stage in stages" :key="stage.id" class="stage-row-item">
+                        <div class="stage-info">
+                              <div class="s-ord">{{ stage.sequence_order }}</div>
+                              <div>
+                                 <div class="s-name">{{ stage.name }}</div>
+                                 <div class="s-type">{{ stage.stage_type }}</div>
+                              </div>
+                        </div>
+                        
+                        <n-space>
+                              <n-button 
+                                 size="small" 
+                                 secondary 
+                                 type="info"
+                                 @click="handleSettle(stage.id)"
+                              >
+                                 {{ t('admin.settle_next') }}
+                              </n-button>
+                        </n-space>
+                     </div>
+                  </div>
 
-                 <n-divider />
-                 
-                 <n-alert :title="t('admin.quick_actions')" type="info">
-                    <n-space>
-                       <n-button secondary @click="$router.push('/ceremony?stageId=' + (stages[0]?.id || ''))">
-                          {{ t('admin.go_draw') }}
-                       </n-button>
-                       <n-button secondary @click="$router.push('/tournament/' + selectedTournamentId)">
-                          {{ t('admin.go_live') }}
-                       </n-button>
-                    </n-space>
-                 </n-alert>
-              </div>
-           </n-tab-pane>
+                  <n-divider />
+                  
+                  <n-alert :title="t('admin.quick_actions')" type="info">
+                     <n-space>
+                        <n-button secondary @click="$router.push('/ceremony?stageId=' + (stages[0]?.id || ''))">
+                           {{ t('admin.go_draw') }}
+                        </n-button>
+                        <n-button secondary @click="$router.push('/tournament/' + selectedTournamentId)">
+                           {{ t('admin.go_live') }}
+                        </n-button>
+                     </n-space>
+                  </n-alert>
+               </div>
+            </n-tab-pane>
 
-           <n-tab-pane name="roster" :tab="t('admin.roster_management')">
-             <n-upload
+            <n-tab-pane name="roster" :tab="t('admin.roster_management')">
+               <n-upload
                directory-dnd
                :custom-request="customRequest"
                accept=".csv"
-             >
+               >
                <n-upload-dragger>
-                 <div style="margin-bottom: 12px">
-                   <n-icon size="48" :depth="3">
+                  <div style="margin-bottom: 12px">
+                     <n-icon size="48" :depth="3">
                      <archive-outline />
-                   </n-icon>
-                 </div>
-                 <n-text style="font-size: 16px">
-                   {{ t('admin.upload_instruction') }}
-                 </n-text>
-                 <n-p depth="3" style="margin: 8px 0 0 0">
-                   {{ t('admin.upload_format') }}
-                 </n-p>
+                     </n-icon>
+                  </div>
+                  <n-text style="font-size: 16px">
+                     {{ t('admin.upload_instruction') }}
+                  </n-text>
+                  <n-p depth="3" style="margin: 8px 0 0 0">
+                     {{ t('admin.upload_format') }}
+                  </n-p>
                </n-upload-dragger>
-             </n-upload>
-           </n-tab-pane>
-         </n-tabs>
-       </n-card>
+               </n-upload>
+            </n-tab-pane>
+            </n-tabs>
+         </div>
+       </div>
     </div>
 
     <!-- Create/Edit Modal -->
@@ -224,7 +232,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { 
-  useMessage, NCard, NTabs, NTabPane, NUpload, NUploadDragger, NIcon, NText, NP, NEmpty, NButton, NTag, NButtonGroup, NDivider, NAlert, NSpace, NModal, NForm, NFormItem, NInput, NSpin, NInputNumber, NInputGroup, NMenu, NDatePicker, NGrid, NGridItem
+  useMessage, NTabs, NTabPane, NUpload, NUploadDragger, NIcon, NText, NP, NEmpty, NButton, NTag, NButtonGroup, NDivider, NAlert, NSpace, NModal, NForm, NFormItem, NInput, NSpin, NInputNumber, NInputGroup, NMenu, NDatePicker, NGrid, NGridItem
 } from 'naive-ui'
 import { ArchiveOutline, Add, Trash } from '@vicons/ionicons5'
 import type { UploadCustomRequestOptions } from 'naive-ui'
@@ -578,14 +586,22 @@ const customRequest = async ({ file, onFinish, onError }: UploadCustomRequestOpt
 <style scoped>
 .admin-container {
   display: flex;
-  height: calc(100vh - 80px); /* Adjust based on navbar height */
-  max-width: 1400px;
+  min-height: calc(100vh - 80px); /* Adjust based on navbar height */
+  max-width: 1800px;
   margin: 0 auto;
   gap: 24px;
+  padding: 20px;
+}
+
+@media (max-width: 768px) {
+  .admin-container { flex-direction: column; padding: 10px; }
+  .sidebar { width: 100%; height: auto; }
+  .main-content { padding-bottom: 20px; }
 }
 
 .sidebar {
-   width: 250px;
+   width: 280px;
+   flex-shrink: 0;
    background: #fff;
    border-right: 1px solid #eee;
    display: flex;
