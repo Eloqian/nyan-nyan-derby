@@ -36,6 +36,16 @@
     "profile": "Trainer Card",
     "title": "MEOW CUP"
   },
+  "stages": {
+    "info": "INFO",
+    "audition": "Audition",
+    "group_stage_1": "Group Stage 1",
+    "group_stage_2": "Group Stage 2",
+    "bracket_stage": "Bracket Stage",
+    "elimination": "Elimination",
+    "round_robin": "Round Robin",
+    "double_elimination": "Double Elimination"
+  },
   "admin": {
     "dashboard_title": "Admin Dashboard",
     "tournament_control": "⚙️ Tournament Control",
@@ -52,7 +62,7 @@
     "go_live": "Go to Live Center",
     "roster_management": "👥 Roster Management",
     "upload_instruction": "Click or drag CSV file to this area to upload",
-    "upload_format": "Format: in_game_name, qq_id, is_npc (true/false)",
+    "upload_format": "Format: in_game_name, qq_id",
     "create_modal_title": "Create Tournament",
     "tournament_name": "Tournament Name",
     "cancel": "Cancel",
@@ -61,6 +71,9 @@
     "tournament_created": "Tournament Created!",
     "failed_create": "Failed to create",
     "failed_update": "Failed to update status",
+    "conflict_title": "Resolve Duplicates",
+    "conflict_desc": "Duplicate QQ IDs detected in the file. Please select which entry to keep for each conflict:",
+    "confirm_import": "Confirm & Import",
     "upload_success": "Upload success",
     "upload_fail": "Upload failed",
     "stage_complete": "Stage Complete! Proceeding to {stage}",

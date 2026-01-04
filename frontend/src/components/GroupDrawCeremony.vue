@@ -1,62 +1,83 @@
 <template>
   <div class="ceremony-container">
-    <div class="controls-card">
-      <div class="controls-header">
-        <h2>🎲 Stage Draw</h2>
-        <p class="subtitle">Setup the next stage groups</p>
-      </div>
-      <div class="controls-body">
-         <n-input-group>
-            <n-input v-model:value="stageId" :placeholder="t('ceremony.placeholder_stage_id')" size="large" />
-            <n-button type="primary" size="large" @click="startShuffle" :disabled="isShuffling || isRevealing || !stageId">
+    
+    <!-- Title / Header Section -->
+    <div class="ceremony-header">
+       <div class="header-content">
+          <n-icon size="40" color="#67C05D" class="header-icon"><Shuffle /></n-icon>
+          <div>
+             <h1>{{ t('ceremony.title') || 'Draw Ceremony' }}</h1>
+             <p class="subtitle">{{ t('ceremony.subtitle') || 'Official Tournament Stage Draw' }}</p>
+          </div>
+       </div>
+       
+       <div class="status-badge" v-if="statusText">
+          <n-tag :type="statusType" round size="large" :bordered="false" style="font-weight: bold; padding: 4px 16px;">
+             {{ statusText }}
+          </n-tag>
+       </div>
+    </div>
+
+    <!-- Control Station -->
+    <div class="control-station uma-card">
+      <div class="control-row">
+         <div class="input-area">
+            <span class="label">{{ t('ceremony.target_stage') }}</span>
+            <n-input-group>
+               <n-input v-model:value="stageId" :placeholder="t('ceremony.placeholder_stage_id')" />
+            </n-input-group>
+         </div>
+
+         <div class="actions-area">
+            <n-button type="primary" size="medium" round @click="startShuffle" :disabled="isShuffling || isRevealing || !stageId" class="action-btn">
               <template #icon><n-icon><Shuffle /></n-icon></template>
               {{ t('ceremony.start_shuffle') }}
             </n-button>
-         </n-input-group>
-         
-         <div class="action-buttons">
-            <n-button type="warning" size="large" @click="stopShuffle" :disabled="!isShuffling" dashed>
+            
+            <n-button type="warning" size="medium" round @click="stopShuffle" :disabled="!isShuffling" dashed class="action-btn">
                🛑 {{ t('ceremony.stop_reveal') }}
             </n-button>
-            <n-button type="success" size="large" @click="confirmGroups" :disabled="!finalData || isRevealing || isShuffling">
+
+            <div class="divider-vertical"></div>
+
+            <n-button type="success" size="medium" round secondary @click="confirmGroups" :disabled="!finalData || isRevealing || isShuffling" class="action-btn">
                💾 {{ t('ceremony.confirm_save') }}
             </n-button>
          </div>
       </div>
     </div>
 
-    <n-divider />
-
-    <div v-if="statusText" class="status-indicator">
-         <n-tag :type="statusType" size="large" round>
-          {{ t('ceremony.label_status') }}: {{ statusText }}
-       </n-tag>
-    </div>
-
-    <transition-group name="list" tag="div" class="groups-grid">
-      <div v-for="(groupName, gIdx) in groupNames" :key="groupName" class="uma-group-card">
-        <div class="group-header" :style="{ backgroundColor: getGroupColor(gIdx) }">
-          <span class="group-title">{{ groupName }}</span>
-        </div>
-        <div class="group-body">
-          <div v-for="(player, pIdx) in getDisplayPlayers(groupName)" :key="pIdx" class="uma-gate">
-            <div class="gate-number" :style="{ backgroundColor: getGateColor(pIdx + 1) }">{{ pIdx + 1 }}</div>
-            <div class="gate-info">
-               <div class="player-name">{{ player.in_game_name || '---' }}</div>
-               <div v-if="player.seed_level === 1" class="seed-badge">👑 {{ t('ceremony.badge_seed') }}</div>
-               <div v-if="player.is_npc" class="npc-badge">🤖 {{ t('ceremony.badge_npc') }}</div>
-            </div>
-          </div>
+    <!-- Groups Display -->
+    <transition-group name="staggered-fade" tag="div" class="groups-grid">
+      <div v-for="(groupName, gIdx) in groupNames" :key="groupName" class="group-column">
+        <div class="group-card">
+           <div class="group-card-header" :style="{ borderTopColor: getGroupColor(gIdx) }">
+              <div class="group-letter" :style="{ background: getGroupColor(gIdx) }">{{ groupName.split(' ').pop() }}</div>
+              <span class="group-full-name">{{ groupName }}</span>
+           </div>
+           
+           <div class="group-list">
+             <div v-for="(player, pIdx) in getDisplayPlayers(groupName)" :key="pIdx" class="player-slot">
+               <div class="slot-number">{{ pIdx + 1 }}</div>
+               <div class="player-content" :class="{ 'is-empty': !player.in_game_name || player.in_game_name === '---' }">
+                  <div class="p-name">{{ player.in_game_name || '---' }}</div>
+                  <div class="badges">
+                     <span v-if="player.seed_level === 1" class="mini-badge seed">SEED</span>
+                  </div>
+               </div>
+             </div>
+           </div>
         </div>
       </div>
     </transition-group>
+
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onUnmounted, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { useMessage, NButton, NInput, NInputGroup, NIcon, NDivider, NTag } from 'naive-ui'
+import { useMessage, NButton, NInput, NInputGroup, NIcon, NTag } from 'naive-ui'
 import { Shuffle } from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
 import { getDrawPreview, saveGroups } from '../api/stages'
@@ -91,7 +112,7 @@ const statusType = computed(() => {
 const groupNames = ref<string[]>([])
 // Initialize with A-N (14 groups) as default placeholders
 for (let i = 0; i < 14; i++) {
-  groupNames.value.push(`${t('ceremony.group_prefix')} ${String.fromCharCode(65 + i)}`)
+  groupNames.value.push(`${t('ceremony.group_prefix') || 'Group'} ${String.fromCharCode(65 + i)}`)
 }
 
 // Temporary "Shuffling" state
@@ -99,7 +120,7 @@ const shuffleState = ref<Record<string, any[]>>({})
 let shuffleInterval: number | null = null
 
 // Dummy names for visual effect
-const dummyNames = ["Special Week", "Silence Suzuka", "Tokai Teio", "Oguri Cap", "Gold Ship", "Vodka", "Daiwa Scarlet"]
+const dummyNames = ["Special Week", "Silence Suzuka", "Tokai Teio", "Oguri Cap", "Gold Ship", "Vodka", "Daiwa Scarlet", "Mejiro McQueen", "Symboli Rudolf", "Narita Brian"]
 
 const startShuffle = () => {
   if (!stageId.value) {
@@ -115,11 +136,11 @@ const startShuffle = () => {
     groupNames.value.forEach(g => {
       temp[g] = Array(6).fill(null).map(() => ({
         in_game_name: dummyNames[Math.floor(Math.random() * dummyNames.length)],
-        seed_level: Math.random() > 0.8 ? 1 : 0
+        seed_level: Math.random() > 0.9 ? 1 : 0
       }))
     })
     shuffleState.value = temp
-  }, 80)
+  }, 60) // Faster shuffle
 }
 
 const stopShuffle = async () => {
@@ -135,7 +156,7 @@ const stopShuffle = async () => {
     isShuffling.value = false
     isRevealing.value = true
     
-    // Instant reveal for now
+    // Instant reveal for now (could add staged reveal later)
     shuffleState.value = data
     isRevealing.value = false
     message.success(t('ceremony.draw_complete'))
@@ -167,23 +188,8 @@ const confirmGroups = async () => {
 
 // Visual Helpers
 const getGroupColor = (idx: number) => {
-   const colors = ['#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0', '#42A5F5', '#29B6F6', '#26C6DA', '#26A69A', '#66BB6A', '#9CCC65', '#D4E157', '#FFEE58', '#FFCA28']
+   const colors = ['#EF5350', '#AB47BC', '#5C6BC0', '#29B6F6', '#26A69A', '#9CCC65', '#FFCA28', '#FF7043', '#8D6E63', '#78909C']
    return colors[idx % colors.length]
-}
-
-// Gate Colors (Standard Horse Racing: 1=White, 2=Black, 3=Red, 4=Blue, 5=Yellow, 6=Green, 7=Orange, 8=Pink)
-const getGateColor = (gate: number) => {
-   const map: Record<number, string> = {
-      1: '#FFFFFF', // White cap (border usually) - let's use border grey for contrast
-      2: '#212121', // Black
-      3: '#F44336', // Red
-      4: '#2196F3', // Blue
-      5: '#FFEB3B', // Yellow
-      6: '#4CAF50', // Green
-      7: '#FF9800', // Orange
-      8: '#F06292'  // Pink
-   }
-   return map[gate] || '#9E9E9E'
 }
 
 onUnmounted(() => {
@@ -193,142 +199,235 @@ onUnmounted(() => {
 
 <style scoped>
 .ceremony-container {
-  padding: 0;
-}
-.controls-card {
-   background: white;
-   padding: 24px;
-   border-radius: 16px;
-   box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-   display: flex;
-   flex-direction: column;
-   align-items: center;
-   text-align: center;
-}
-.controls-body {
-   display: flex;
-   flex-direction: column;
-   gap: 16px;
-   width: 100%;
-   max-width: 500px;
-}
-.action-buttons {
-   display: flex;
-   gap: 16px;
-   justify-content: center;
+  width: 90%;
+  max-width: 1200px;
+  margin: 40px auto;
+  padding-bottom: 80px;
 }
 
+.ceremony-header {
+   display: flex;
+   justify-content: space-between;
+   align-items: flex-end;
+   margin-bottom: 24px;
+   padding: 0 12px;
+}
+
+.header-content {
+   display: flex;
+   align-items: center;
+   gap: 16px;
+}
+.header-icon {
+   background: white;
+   padding: 8px;
+   border-radius: 12px;
+   box-shadow: 0 4px 12px rgba(103, 192, 93, 0.2);
+}
+
+.ceremony-header h1 {
+   margin: 0;
+   font-size: 2rem;
+   color: #333;
+   line-height: 1.2;
+}
+.ceremony-header .subtitle {
+   margin: 4px 0 0 0;
+   color: #666;
+   font-size: 1rem;
+}
+
+.control-station {
+   background: white;
+   border-radius: 16px;
+   padding: 20px 32px;
+   box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+   margin-bottom: 40px;
+   border: 1px solid rgba(0,0,0,0.03);
+}
+
+.control-row {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   flex-wrap: wrap;
+   gap: 20px;
+}
+
+.input-area {
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   flex: 1;
+   min-width: 250px;
+}
+.input-area .label {
+   font-weight: bold;
+   color: #555;
+   white-space: nowrap;
+}
+
+.actions-area {
+   display: flex;
+   align-items: center;
+   gap: 16px;
+}
+
+.divider-vertical {
+   width: 1px;
+   height: 32px;
+   background: #eee;
+   margin: 0 8px;
+}
+
+.action-btn {
+   font-weight: bold;
+   min-width: 120px;
+}
+
+/* GRID LAYOUT */
 .groups-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
-  margin-top: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 24px;
 }
 
-/* Uma Style Card */
-.uma-group-card {
+.group-card {
    background: white;
    border-radius: 12px;
    overflow: hidden;
-   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-   transition: transform 0.2s;
-   border: 1px solid #eee;
+   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+   transition: transform 0.2s, box-shadow 0.2s;
+   border: 1px solid #f0f0f0;
+   height: 100%;
 }
-.uma-group-card:hover {
+.group-card:hover {
    transform: translateY(-4px);
-   box-shadow: 0 8px 16px rgba(0,0,0,0.12);
+   box-shadow: 0 12px 24px rgba(0,0,0,0.1);
 }
 
-.group-header {
-   padding: 8px 16px;
+.group-card-header {
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   padding: 12px 16px;
+   background: #fafafa;
+   border-top: 4px solid transparent; /* Colored by inline style */
+   border-bottom: 1px solid #eee;
+}
+
+.group-letter {
+   width: 32px;
+   height: 32px;
+   border-radius: 8px;
    color: white;
-   font-weight: bold;
-   text-transform: uppercase;
-   letter-spacing: 1px;
-   text-align: center;
-   text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   font-weight: 800;
+   font-size: 1.1rem;
+   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.group-body {
+.group-full-name {
+   font-weight: bold;
+   color: #444;
+   font-size: 1.05rem;
+}
+
+.group-list {
    padding: 12px;
    display: flex;
    flex-direction: column;
    gap: 8px;
 }
 
-.uma-gate {
+.player-slot {
    display: flex;
    align-items: center;
-   background: #FAFAFA;
-   border-radius: 8px;
-   padding: 6px;
-   border: 1px solid #f0f0f0;
+   gap: 10px;
+   font-size: 0.95rem;
 }
 
-.gate-number {
-   width: 24px;
-   height: 24px;
-   border-radius: 4px;
-   display: flex;
-   align-items: center;
-   justify-content: center;
+.slot-number {
+   width: 20px;
+   color: #999;
+   font-size: 0.8rem;
+   text-align: right;
    font-weight: bold;
-   font-size: 12px;
-   margin-right: 10px;
-   color: #333; /* Default for yellow/white */
-   border: 1px solid rgba(0,0,0,0.1);
-}
-/* Adjust text color for dark gates */
-.gate-number[style*="rgb(33, 33, 33)"],
-.gate-number[style*="#212121"],
-.gate-number[style*="#F44336"],
-.gate-number[style*="#2196F3"],
-.gate-number[style*="#4CAF50"] {
-   color: white;
 }
 
-.gate-info {
+.player-content {
    flex: 1;
+   background: #fdfdfd;
+   border: 1px solid #f0f0f0;
+   border-radius: 6px;
+   padding: 6px 10px;
    display: flex;
    align-items: center;
    justify-content: space-between;
+   transition: background 0.2s;
 }
 
-.player-name {
-   font-weight: 500;
-   font-size: 14px;
+.player-content.is-empty {
+   background: #fafafa;
+   border-style: dashed;
+   color: #ccc;
 }
 
-.seed-badge {
-   background: #FFD700;
-   color: #554400;
-   font-size: 10px;
-   padding: 2px 6px;
-   border-radius: 10px;
+.p-name {
+   font-weight: 600;
+   color: #333;
+}
+
+.badges {
+   display: flex;
+   gap: 4px;
+}
+
+.mini-badge {
+   font-size: 0.7rem;
+   padding: 1px 4px;
+   border-radius: 4px;
    font-weight: bold;
+   text-transform: uppercase;
 }
-
-.npc-badge {
-   background: #E0E0E0;
-   color: #757575;
-   font-size: 10px;
-   padding: 2px 6px;
-   border-radius: 10px;
+.mini-badge.seed {
+   background: #FFF8E1;
+   color: #FBC02D;
+   border: 1px solid #FFE082;
 }
-
-.status-indicator {
-   text-align: center;
-   margin-bottom: 16px;
+.mini-badge.npc {
+   background: #EEEEEE;
+   color: #9E9E9E;
+   border: 1px solid #E0E0E0;
 }
 
 /* Animations */
-.list-enter-active,
-.list-leave-active {
-  transition: all 0.5s ease;
+.staggered-fade-enter-active,
+.staggered-fade-leave-active {
+  transition: all 0.4s ease;
 }
-.list-enter-from,
-.list-leave-to {
+.staggered-fade-enter-from,
+.staggered-fade-leave-to {
   opacity: 0;
-  transform: scale(0.9);
+  transform: translateY(20px);
+}
+
+@media (max-width: 768px) {
+   .ceremony-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+   }
+   .control-row {
+      flex-direction: column;
+      align-items: stretch;
+   }
+   .actions-area {
+      flex-wrap: wrap;
+      justify-content: center;
+   }
+   .divider-vertical { display: none; }
 }
 </style>

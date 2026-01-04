@@ -19,11 +19,12 @@ class User(UserBase, table=True):
 class PlayerBase(SQLModel):
     in_game_name: str
     qq_id: str = Field(index=True, unique=True)
-    is_npc: bool = False
 
 class Player(PlayerBase, table=True):
     id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
     user_id: Optional[UUID] = Field(default=None, foreign_key="user.id")
+    
+    is_npc: bool = Field(default=False)
 
     # Seeding Logic: 0 = None, 1 = Group Head, 2 = Skip Audition
     seed_level: int = Field(default=0)

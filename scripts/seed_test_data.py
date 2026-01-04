@@ -106,7 +106,7 @@ async def seed_data():
         print("Created 96 Players (14 Seeds)")
 
         print("\n\n=== TEST INFO ===")
-        print(f"Stage ID: {stage.id}")
+        print(f"Stage ID: {stage1.id}")
         print("Use this ID in the Frontend '/ceremony' page.")
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ export interface TournamentParticipant {
   checked_in_at?: string
   player: {
     in_game_name: string
-    is_npc: boolean
+    qq_id?: string
   }
 }
 

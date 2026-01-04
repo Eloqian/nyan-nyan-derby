@@ -1,7 +1,5 @@
 /* Nyan Nyan Derby - Uma Musume Inspired Theme V2 */
 
-@import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&display=swap');
-
 :root {
   /* Uma Palette */
   --uma-green: #67C05D; /* Classic Turf Green */
@@ -18,7 +16,6 @@
 }
 
 body {
-  font-family: 'M PLUS Rounded 1c', sans-serif; /* Rounded font for that Anime UI feel */
   background-color: var(--bg-color);
   color: var(--uma-dark);
   /* Subtle diamond pattern background */

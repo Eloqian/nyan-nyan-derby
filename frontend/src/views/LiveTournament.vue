@@ -117,6 +117,17 @@ const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString()
 }
 
+const getStageName = (name: string) => {
+  if (!name) return ''
+  const lower = name.toLowerCase().trim()
+  if (lower === 'info') return t('stages.info', 'INFO')
+  if (lower.includes('audition')) return t('stages.audition', name)
+  if (lower === 'group stage 1' || lower === 'group stage round 1') return t('stages.group_stage_1', name)
+  if (lower === 'group stage 2' || lower === 'group stage round 2') return t('stages.group_stage_2', name)
+  if (lower.includes('bracket') || lower.includes('elimination')) return t('stages.bracket_stage', name)
+  return name
+}
+
 // --- Matrix Editing Logic ---
 const showModal = ref(false)
 const editingMatch = ref<any>(null)
@@ -236,7 +247,7 @@ const saveRoomNumber = async () => {
              @click="activeStageId = stage.id"
           >
              <span class="tab-idx">{{ index + 1 }}</span>
-             <span class="tab-name">{{ stage.name }}</span>
+             <span class="tab-name">{{ getStageName(stage.name) }}</span>
           </div>
        </div>
     </div>
@@ -468,7 +479,6 @@ const saveRoomNumber = async () => {
 .hero-left { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
 
 .hero-title-compact {
-  font-family: 'M PLUS Rounded 1c', sans-serif;
   font-size: 2.5rem;
   font-weight: 900;
   font-style: italic;
@@ -565,7 +575,7 @@ const saveRoomNumber = async () => {
 /* --- Content Wrapper --- */
 .content-wrapper {
   width: 100%;
-  max-width: 1800px; /* Match content wrapper */
+  max-width: 1800px; /* Match Home Page width */
   margin: 0 auto;
   padding: 2rem;
   box-sizing: border-box;

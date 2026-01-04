@@ -41,7 +41,7 @@ const themeOverrides: GlobalThemeOverrides = {
     errorColor: '#FF5252',
     bodyColor: 'transparent', // Let custom background show through
     cardColor: 'rgba(255, 255, 255, 0.95)',
-    fontFamily: '"M PLUS Rounded 1c", "Hiragino Sans", "Microsoft YaHei", sans-serif'
+    fontFamily: '"Noto Sans SC", "Microsoft YaHei", "Hiragino Sans GB", "PingFang SC", sans-serif'
   },
   Button: {
     borderRadiusMedium: '20px',

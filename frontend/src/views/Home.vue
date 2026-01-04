@@ -11,8 +11,10 @@
           
           <div class="hero-info">
             <div class="live-badge-wrapper">
-              <span class="live-badge">LIVE NOW</span>
-              <span class="viewer-count">● {{ $t('home.status_active') }}</span>
+              <span class="live-badge" :class="{'setup-badge': t.status === 'setup'}">
+                 {{ t.status === 'active' ? 'LIVE NOW' : 'COMING SOON' }}
+              </span>
+              <span class="viewer-count">● {{ t.status === 'active' ? $t('home.status_active') : $t('home.status_setup') }}</span>
             </div>
             
             <h2 class="hero-title">{{ t.name }}</h2>
@@ -32,19 +34,12 @@
               {{ $t('home.view_details') }} <span class="arrow">ᐳ</span>
             </button>
           </div>
-
-          <div class="hero-character">
-            <img :src="charImg" class="hero-tachie" alt="Character" />
-          </div>
         </div>
       </section>
 
       <!-- Placeholder Hero if no active race -->
       <section v-else class="hero-section empty">
         <div class="hero-card empty-state">
-           <div class="hero-character-empty">
-            <img :src="charImg" class="hero-tachie-empty" alt="Character" />
-          </div>
           <div class="hero-info centered">
             <h2 class="hero-title">{{ $t('home.no_active_tournament') || 'NO ACTIVE RACES' }}</h2>
             <p class="hero-subtitle">{{ $t('home.coming_soon') }}</p>
@@ -89,7 +84,6 @@ import { useAuthStore } from '../stores/auth'
 import { listTournaments, type Tournament } from '../api/tournaments'
 
 // Assets
-import charImg from '../assets/images/characters/char_01.png'
 import raceCardBg from '../assets/images/backgrounds/race_card_bg.jpg'
 
 const { t } = useI18n()
@@ -99,7 +93,7 @@ const auth = useAuthStore()
 
 const tournaments = ref<Tournament[]>([])
 
-const activeTournaments = computed(() => tournaments.value.filter(t => t.status === 'active'))
+const activeTournaments = computed(() => tournaments.value.filter(t => t.status === 'active' || t.status === 'setup'))
 // Setup tournaments are hidden as per request
 const completedTournaments = computed(() => tournaments.value.filter(t => t.status === 'completed'))
 
@@ -126,7 +120,6 @@ const goToTournament = (tournamentId: string) => {
   position: relative;
   width: 100%;
   overflow-x: hidden;
-  font-family: 'M PLUS Rounded 1c', sans-serif;
   color: #333;
 }
 
@@ -142,7 +135,6 @@ const goToTournament = (tournamentId: string) => {
   .main-content-wrapper { padding: 20px 16px; }
   .hero-card { height: auto; min-height: 400px; flex-direction: column; }
   .hero-info { padding: 30px 20px; align-items: center; text-align: center; }
-  .hero-character { display: none; /* Hide tachie on mobile to save space */ }
   .hero-title { font-size: 2.5rem; }
   .hero-meta { gap: 16px; margin-bottom: 20px; }
 }
@@ -230,6 +222,10 @@ const goToTournament = (tournamentId: string) => {
   box-shadow: 0 2px 5px rgba(0,0,0,0.2);
   animation: pulse 2s infinite;
 }
+.live-badge.setup-badge {
+  background: var(--uma-green, #67C05D);
+  animation: none;
+}
 .viewer-count {
   color: white;
   font-size: 0.9rem;
@@ -294,25 +290,6 @@ const goToTournament = (tournamentId: string) => {
 .enter-btn:active { transform: translateY(4px); box-shadow: 0 0 0 #DBDBDB; }
 .enter-btn .arrow { font-size: 1rem; }
 
-/* Hero Character Integration */
-.hero-character {
-  position: relative;
-  width: 500px;
-  height: 100%;
-  z-index: 4;
-}
-.hero-tachie {
-  position: absolute;
-  bottom: -40px; 
-  right: -50px;
-  height: 130%; /* Pop out more */
-  width: auto;
-  object-fit: contain;
-  filter: drop-shadow(-4px 4px 10px rgba(0,0,0,0.2));
-  mask-image: none;
-  -webkit-mask-image: none;
-}
-
 /* Empty State Styling - Softer */
 .hero-card.empty-state {
   background: rgba(255, 255, 255, 0.9);
@@ -331,16 +308,6 @@ const goToTournament = (tournamentId: string) => {
   color: #999;
   font-size: 1.2rem;
   font-weight: bold;
-}
-.hero-character-empty {
-  width: 300px;
-  opacity: 0.8;
-  filter: grayscale(0.5);
-}
-.hero-tachie-empty {
-  height: 100%;
-  width: auto;
-  object-fit: contain;
 }
 
 /* History Section Grid */

@@ -168,8 +168,7 @@ class DrawEngine:
                 {
                     "id": str(p.id),
                     "in_game_name": p.in_game_name,
-                    "seed_level": p.seed_level,
-                    "is_npc": p.is_npc
+                    "seed_level": p.seed_level
                 }
                 for p in g_players
             ]

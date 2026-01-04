@@ -17,7 +17,6 @@ router = APIRouter()
 class PlayerView(BaseModel):
     id: UUID
     name: str
-    is_npc: bool
 
 class ParticipantView(BaseModel):
     player: PlayerView
@@ -132,7 +131,7 @@ async def get_stage_matches_view(
             for mp, player in mp_results:
                 group_player_ids.add(str(player.id))
                 participants_view.append(ParticipantView(
-                    player=PlayerView(id=player.id, name=player.in_game_name, is_npc=player.is_npc)
+                    player=PlayerView(id=player.id, name=player.in_game_name)
                 ))
 
             # Get Results

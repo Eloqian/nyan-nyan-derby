@@ -85,27 +85,40 @@
                   
                   <n-divider />
                   
-                  <h3>{{ t('admin.stage_flow') }}</h3>
-                  <div class="stages-list">
-                     <div v-for="stage in stages" :key="stage.id" class="stage-row-item">
-                        <div class="stage-info">
-                              <div class="s-ord">{{ stage.sequence_order }}</div>
-                              <div>
-                                 <div class="s-name">{{ stage.name }}</div>
-                                 <div class="s-type">{{ stage.stage_type }}</div>
-                              </div>
+                  <div class="section-header">
+                     <h3>{{ t('admin.stage_flow') }}</h3>
+                  </div>
+                  
+                  <div class="stage-timeline">
+                     <div v-for="(stage, index) in stages" :key="stage.id" class="timeline-item">
+                        <div class="timeline-left">
+                           <div class="timeline-node">
+                              {{ stage.sequence_order }}
+                           </div>
+                           <div class="timeline-connector" v-if="index < stages.length - 1"></div>
                         </div>
                         
-                        <n-space>
-                              <n-button 
-                                 size="small" 
-                                 secondary 
-                                 type="info"
-                                 @click="handleSettle(stage.id)"
-                              >
-                                 {{ t('admin.settle_next') }}
-                              </n-button>
-                        </n-space>
+                        <div class="timeline-content">
+                           <div class="tc-header">
+                              <div class="tc-info">
+                                 <span class="stage-name">{{ getStageName(stage.name) }}</span>
+                                 <n-tag size="small" :bordered="false" round class="stage-type-tag">
+                                    {{ getStageType(stage.stage_type) }}
+                                 </n-tag>
+                              </div>
+                              <div class="tc-actions">
+                                 <n-button 
+                                    size="small" 
+                                    secondary 
+                                    type="primary"
+                                    round
+                                    @click="handleSettle(stage.id)"
+                                 >
+                                    {{ t('admin.settle_next') }}
+                                 </n-button>
+                              </div>
+                           </div>
+                        </div>
                      </div>
                   </div>
 
@@ -125,6 +138,14 @@
             </n-tab-pane>
 
             <n-tab-pane name="roster" :tab="t('admin.roster_management')">
+               <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                  <h3 style="margin: 0;">{{ t('admin.roster_management') }}</h3>
+                  <n-button type="primary" secondary size="small" @click="openPlayerModal">
+                     <template #icon><n-icon><PersonAdd /></n-icon></template>
+                     {{ t('admin.add_player_manual') || 'Add Player' }}
+                  </n-button>
+               </div>
+
                <n-upload
                directory-dnd
                :custom-request="customRequest"
@@ -140,7 +161,7 @@
                      {{ t('admin.upload_instruction') }}
                   </n-text>
                   <n-p depth="3" style="margin: 8px 0 0 0">
-                     {{ t('admin.upload_format') }}
+                     CSV Format: in_game_name,qq_id
                   </n-p>
                </n-upload-dragger>
                </n-upload>
@@ -149,6 +170,54 @@
          </div>
        </div>
     </div>
+
+    <!-- Conflict Resolution Modal -->
+    <n-modal v-model:show="showConflictModal" preset="card" :title="t('admin.conflict_title') || 'Resolve Duplicates'" style="width: 700px">
+       <n-alert type="warning" style="margin-bottom: 16px">
+          {{ t('admin.conflict_desc') || 'Duplicate QQ IDs found in the file. Please select which entry to keep for each conflict.' }}
+       </n-alert>
+       
+       <div v-for="(records, qq) in conflicts" :key="qq" class="conflict-group" style="margin-bottom: 24px; border: 1px solid #eee; padding: 12px; border-radius: 8px;">
+          <div style="font-weight: bold; margin-bottom: 8px; color: #666;">QQ: {{ qq }}</div>
+          <n-radio-group v-model:value="conflictSelections[qq]" name="radiogroup">
+             <n-space vertical>
+                <n-radio v-for="rec in records" :key="rec.row" :value="rec">
+                   <span style="font-weight: bold">{{ rec.in_game_name }}</span> 
+                   <span style="color: #999; font-size: 0.9em; margin-left: 8px;">(Row {{ rec.row }})</span>
+                </n-radio>
+             </n-space>
+          </n-radio-group>
+       </div>
+
+       <template #footer>
+          <div style="display: flex; justify-content: flex-end; gap: 12px;">
+             <n-button @click="showConflictModal = false">{{ t('admin.cancel') }}</n-button>
+             <n-button type="primary" @click="handleConflictResolve" :loading="resolvingConflicts">
+                {{ t('admin.confirm_import') || 'Confirm Import' }}
+             </n-button>
+          </div>
+       </template>
+    </n-modal>
+
+    <!-- Player Create Modal -->
+    <n-modal v-model:show="showPlayerModal" preset="card" :title="t('admin.add_player_manual') || 'Add Player'" style="width: 500px">
+       <n-form label-placement="left" label-width="100">
+          <n-form-item :label="t('admin.player_name') || 'Name'">
+             <n-input v-model:value="playerForm.in_game_name" placeholder="In-game Name" />
+          </n-form-item>
+          <n-form-item :label="t('admin.player_qq') || 'QQ ID'">
+             <n-input v-model:value="playerForm.qq_id" placeholder="QQ ID (Unique)" />
+          </n-form-item>
+       </n-form>
+       <template #footer>
+          <div style="display: flex; justify-content: flex-end; gap: 12px;">
+             <n-button @click="showPlayerModal = false">{{ t('admin.cancel') }}</n-button>
+             <n-button type="primary" @click="handleCreatePlayer" :loading="creatingPlayer" :disabled="!playerForm.in_game_name || !playerForm.qq_id">
+                {{ t('admin.create') }}
+             </n-button>
+          </div>
+       </template>
+    </n-modal>
 
     <!-- Create/Edit Modal -->
     <n-modal v-model:show="showCreateModal" preset="card" :title="isEditing ? t('admin.edit_settings') : t('admin.create_modal_title')" style="width: 800px">
@@ -232,13 +301,14 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { 
-  useMessage, NTabs, NTabPane, NUpload, NUploadDragger, NIcon, NText, NP, NEmpty, NButton, NTag, NButtonGroup, NDivider, NAlert, NSpace, NModal, NForm, NFormItem, NInput, NSpin, NInputNumber, NInputGroup, NMenu, NDatePicker, NGrid, NGridItem
+  useMessage, NTabs, NTabPane, NUpload, NUploadDragger, NIcon, NText, NP, NEmpty, NButton, NTag, NButtonGroup, NDivider, NAlert, NSpace, NModal, NForm, NFormItem, NInput, NSpin, NInputNumber, NInputGroup, NMenu, NDatePicker, NGrid, NGridItem, NRadio, NRadioGroup
 } from 'naive-ui'
-import { ArchiveOutline, Add, Trash } from '@vicons/ionicons5'
+import { ArchiveOutline, Add, Trash, PersonAdd } from '@vicons/ionicons5'
 import type { UploadCustomRequestOptions } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 import { listTournaments, createTournament, updateTournament, type Tournament } from '../api/tournaments'
 import { getStages } from '../api/stages'
+import { createPlayer } from '../api/players'
 
 const router = useRouter()
 const message = useMessage()
@@ -253,6 +323,21 @@ const loadingTournaments = ref(true)
 const showCreateModal = ref(false)
 const isEditing = ref(false)
 const saving = ref(false)
+
+// Player Import Conflicts
+const showConflictModal = ref(false)
+const resolvingConflicts = ref(false)
+const conflicts = ref<Record<string, any[]>>({})
+const conflictSelections = ref<Record<string, any>>({})
+const validPlayersFromImport = ref<any[]>([])
+
+// Player Creation State
+const showPlayerModal = ref(false)
+const creatingPlayer = ref(false)
+const playerForm = ref({
+   in_game_name: '',
+   qq_id: ''
+})
 
 // Form State
 const formModel = ref({
@@ -458,6 +543,25 @@ ${prizeText}
    formModel.value.rulesText = tpl
 }
 
+const openPlayerModal = () => {
+   playerForm.value = { in_game_name: '', qq_id: '' }
+   showPlayerModal.value = true
+}
+
+const handleCreatePlayer = async () => {
+   if (!playerForm.value.in_game_name || !playerForm.value.qq_id) return
+   creatingPlayer.value = true
+   try {
+      await createPlayer(auth.token!, playerForm.value)
+      message.success(t('admin.player_created') || 'Player created successfully')
+      showPlayerModal.value = false
+   } catch (e: any) {
+      message.error(e.response?.data?.detail || t('admin.create_fail'))
+   } finally {
+      creatingPlayer.value = false
+   }
+}
+
 const handleSave = async () => {
    if (!formModel.value.name) return
    saving.value = true
@@ -555,6 +659,22 @@ const updateStatus = async (status: string) => {
    }
 }
 
+const getStageName = (name: string) => {
+  if (!name) return ''
+  const lower = name.toLowerCase().trim()
+  if (lower.includes('audition')) return t('stages.audition')
+  if (lower === 'group stage 1') return t('stages.group_stage_1')
+  if (lower === 'group stage 2') return t('stages.group_stage_2')
+  if (lower.includes('bracket')) return t('stages.bracket_stage')
+  return name
+}
+
+const getStageType = (type: string) => {
+   if (type === 'round_robin') return t('stages.round_robin')
+   if (type === 'double_elimination') return t('stages.double_elimination')
+   return type
+}
+
 const customRequest = async ({ file, onFinish, onError }: UploadCustomRequestOptions) => {
   const formData = new FormData()
   formData.append('file', file.file as File)
@@ -572,14 +692,88 @@ const customRequest = async ({ file, onFinish, onError }: UploadCustomRequestOpt
       const data = await res.json()
       message.success(data.message || t('admin.upload_success'))
       onFinish()
+    } else if (res.status === 409) {
+      // Handle Conflicts
+      const data = await res.json()
+      conflicts.value = data.conflicts
+      validPlayersFromImport.value = data.valid
+      
+      // Initialize selections (default to first option)
+      conflictSelections.value = {}
+      for (const qq in data.conflicts) {
+         if (data.conflicts[qq].length > 0) {
+            conflictSelections.value[qq] = data.conflicts[qq][0]
+         }
+      }
+      
+      showConflictModal.value = true
+      onFinish() // Technically finished upload, now in resolution phase
     } else {
-      message.error(t('admin.upload_fail'))
+      const err = await res.json()
+      message.error(err.detail || t('admin.upload_fail'))
       onError()
     }
   } catch (e) {
     message.error(t('admin.upload_fail'))
     onError()
   }
+}
+
+const handleConflictResolve = async () => {
+   resolvingConflicts.value = true
+   try {
+      // Merge valid players with selected conflict winners
+      // Explicitly map to ensure NO extra fields are sent, preventing 422 errors
+      const finalPlayers = validPlayersFromImport.value.map(p => ({
+          in_game_name: p.in_game_name,
+          qq_id: p.qq_id
+      }))
+      
+      for (const qq in conflictSelections.value) {
+         const selection = conflictSelections.value[qq]
+         if (selection) {
+            finalPlayers.push({
+               in_game_name: selection.in_game_name,
+               qq_id: qq
+            })
+         }
+      }
+      
+      if (finalPlayers.length === 0) {
+         message.warning("No players to import")
+         showConflictModal.value = false
+         return
+      }
+
+      const res = await fetch('/api/v1/players/batch', {
+         method: 'POST',
+         headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${auth.token || ''}`
+         },
+         body: JSON.stringify(finalPlayers)
+      })
+      
+      if (res.ok) {
+         const data = await res.json()
+         message.success(data.message)
+         showConflictModal.value = false
+      } else {
+         const errorData = await res.json()
+         const errorMsg = errorData.detail || errorData.message || 'Batch import failed'
+         // If it's a validation error (422), it might be an array of errors
+         if (Array.isArray(errorData.detail)) {
+             const msgs = errorData.detail.map((e: any) => `${e.loc.join('.')}: ${e.msg}`).join('; ')
+             throw new Error(msgs)
+         }
+         throw new Error(errorMsg)
+      }
+   } catch (e: any) {
+      console.error(e)
+      message.error(e.message || t('admin.upload_fail'))
+   } finally {
+      resolvingConflicts.value = false
+   }
 }
 </script>
 
@@ -659,5 +853,109 @@ const customRequest = async ({ file, onFinish, onError }: UploadCustomRequestOpt
    align-items: center;
    height: 100%;
    color: #999;
+}
+
+/* Stage Timeline Styles */
+.section-header {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   margin-bottom: 16px;
+}
+.section-header h3 {
+   margin: 0;
+   color: #333;
+}
+
+.stage-timeline {
+   display: flex;
+   flex-direction: column;
+   padding-left: 8px;
+}
+
+.timeline-item {
+   display: flex;
+   gap: 16px;
+   position: relative;
+   padding-bottom: 24px;
+}
+.timeline-item:last-child {
+   padding-bottom: 0;
+}
+
+.timeline-left {
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   width: 30px;
+   flex-shrink: 0;
+}
+
+.timeline-node {
+   width: 28px;
+   height: 28px;
+   background: #67C05D;
+   color: white;
+   border-radius: 50%;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   font-weight: bold;
+   font-size: 14px;
+   box-shadow: 0 2px 4px rgba(103, 192, 93, 0.3);
+   z-index: 1;
+}
+
+.timeline-connector {
+   flex: 1;
+   width: 2px;
+   background: #e0e0e0;
+   margin-top: 4px;
+   margin-bottom: 4px;
+   min-height: 20px;
+}
+
+.timeline-content {
+   flex: 1;
+   background: white;
+   border: 1px solid #eee;
+   border-radius: 12px;
+   padding: 12px 16px;
+   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+   transition: all 0.2s;
+}
+.timeline-content:hover {
+   transform: translateY(-2px);
+   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+   border-color: #67C05D;
+}
+
+.tc-header {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   flex-wrap: wrap;
+   gap: 8px;
+}
+
+.tc-info {
+   display: flex;
+   flex-direction: column;
+   gap: 4px;
+}
+
+.stage-name {
+   font-weight: bold;
+   font-size: 1.05rem;
+   color: #333;
+}
+
+.stage-type-tag {
+   background-color: #f0f7ff;
+   color: #4FB3FF;
+   font-weight: 600;
+   font-size: 0.75rem;
+   align-self: flex-start;
+   padding: 1px 8px;
 }
 </style>

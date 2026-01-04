@@ -12,7 +12,10 @@ def main():
     if not os.path.exists(versions_dir):
         os.makedirs(versions_dir)
         
-    if not os.listdir(versions_dir):
+    # Check if there are any python migration files (ignoring __pycache__)
+    migration_files = [f for f in os.listdir(versions_dir) if f.endswith('.py')]
+    
+    if not migration_files:
         print("No migrations found. Generating initial migration...")
         try:
              subprocess.run([sys.executable, "-m", "alembic", "revision", "--autogenerate", "-m", "Initial migration"], check=True)

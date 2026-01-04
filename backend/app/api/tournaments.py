@@ -176,7 +176,7 @@ async def get_participants(
             "checked_in_at": tp.checked_in_at,
             "player": {
                 "in_game_name": p.in_game_name,
-                "is_npc": p.is_npc
+                "qq_id": p.qq_id
             }
         })
     return data
