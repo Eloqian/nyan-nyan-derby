@@ -52,6 +52,14 @@
              </n-input-group>
           </div>
 
+          <!-- Security -->
+          <div class="sidebar-card">
+             <h3 class="sidebar-title">{{ t('profile.security') || 'SECURITY' }}</h3>
+             <n-button block secondary @click="showPasswordModal = true">
+                {{ t('profile.change_password') || 'Change Password' }}
+             </n-button>
+          </div>
+
           <!-- Actions -->
           <div class="sidebar-actions">
              <n-button type="error" secondary block strong @click="logout" size="large">
@@ -95,15 +103,38 @@
        </div>
 
     </div>
+
+    <!-- Password Change Modal -->
+    <n-modal v-model:show="showPasswordModal" preset="card" :title="t('profile.change_password') || 'Change Password'" style="width: 400px">
+      <n-form>
+        <n-form-item :label="t('profile.old_password') || 'Old Password'">
+          <n-input v-model:value="passwordForm.old_password" type="password" show-password-on="click" />
+        </n-form-item>
+        <n-form-item :label="t('profile.new_password') || 'New Password'">
+          <n-input v-model:value="passwordForm.new_password" type="password" show-password-on="click" />
+        </n-form-item>
+        <n-form-item :label="t('profile.confirm_password') || 'Confirm New Password'">
+          <n-input v-model:value="passwordForm.confirm_password" type="password" show-password-on="click" />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+           <n-button @click="showPasswordModal = false">{{ t('profile.cancel') || 'Cancel' }}</n-button>
+           <n-button type="primary" @click="handleChangePassword" :loading="changingPassword" :disabled="!passwordForm.old_password || !passwordForm.new_password">
+              {{ t('profile.confirm_change') || 'Update' }}
+           </n-button>
+        </div>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
-import { useMessage, NInput, NInputGroup, NButton, NSpin, NEmpty, NIcon, NAvatar } from 'naive-ui'
+import { useMessage, NInput, NInputGroup, NButton, NSpin, NEmpty, NIcon, NAvatar, NModal, NForm, NFormItem } from 'naive-ui'
 import { Refresh } from '@vicons/ionicons5'
 import { getMyMatches, type MatchResponse } from '../api/matches'
 import PlayerMatchCard from '../components/PlayerMatchCard.vue'
@@ -119,9 +150,88 @@ const claiming = ref(false)
 const boundPlayerName = ref('')
 const loadingPlayer = ref(true)
 
+// Password Change
+const showPasswordModal = ref(false)
+const changingPassword = ref(false)
+const passwordForm = reactive({
+  old_password: '',
+  new_password: '',
+  confirm_password: ''
+})
+
+const handleChangePassword = async () => {
+  if (!passwordForm.old_password || !passwordForm.new_password) return
+  if (passwordForm.new_password !== passwordForm.confirm_password) {
+    message.error(t('profile.passwords_no_match') || 'New passwords do not match')
+    return
+  }
+  
+  changingPassword.value = true
+  try {
+    const res = await fetch('/api/v1/auth/change-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${auth.token}`
+      },
+      body: JSON.stringify({
+        old_password: passwordForm.old_password,
+        new_password: passwordForm.new_password
+      })
+    })
+    
+    if (res.ok) {
+      message.success(t('profile.password_updated') || 'Password updated successfully')
+      showPasswordModal.value = false
+      passwordForm.old_password = ''
+      passwordForm.new_password = ''
+      passwordForm.confirm_password = ''
+    } else {
+      const err = await res.json()
+      message.error(err.detail || 'Failed to update password')
+    }
+  } catch (e) {
+    message.error('An error occurred')
+  } finally {
+    changingPassword.value = false
+  }
+}
+
 // Matches Data
 const matches = ref<MatchResponse[]>([])
 const matchesLoading = ref(false)
+
+const fetchProfileData = async () => {
+  if (!auth.token) return
+  loadingPlayer.value = true
+  matchesLoading.value = true
+  
+  // 1. Fetch Bound Player Info
+  try {
+     const res = await fetch('/api/v1/players/me', {
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+     })
+     if (res.ok) {
+        const player = await res.json()
+        boundPlayerName.value = player.in_game_name
+     } else {
+        boundPlayerName.value = ''
+     }
+  } catch (e) {
+     console.error(e)
+  }
+
+  // 2. Fetch Matches
+  try {
+    const data = await getMyMatches(auth.token)
+    matches.value = data
+  } catch (e) {
+    console.error(e)
+  } finally {
+    loadingPlayer.value = false
+    matchesLoading.value = false
+  }
+}
 
 onMounted(async () => {
   if (!auth.isAuthenticated) {
@@ -129,26 +239,12 @@ onMounted(async () => {
      return
   }
   
-  await fetchMatches()
-  loadingPlayer.value = false
+  await fetchProfileData()
 })
 
 const fetchMatches = async () => {
-  if (!auth.token) return
-  matchesLoading.value = true
-  try {
-    const data = await getMyMatches(auth.token)
-    matches.value = data
-    if (data.length > 0) {
-       // Ideally the API returns the bound player name separately, but inferring for now
-       // or if we had a proper profile endpoint. For now, if they have matches, they are bound.
-       boundPlayerName.value = "Trainer" 
-    }
-  } catch (e) {
-    console.error(e)
-  } finally {
-    matchesLoading.value = false
-  }
+   // Legacy wrapper if called by events
+   await fetchProfileData()
 }
 
 const handleClaim = async () => {

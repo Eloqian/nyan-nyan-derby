@@ -32,7 +32,7 @@
          </div>
          
          <div class="card-content">
-            <n-tabs type="line" animated>
+            <n-tabs type="line" animated @update:value="handleTabChange">
             
             <n-tab-pane name="control" :tab="t('admin.tournament_control')">
                <div class="control-panel">
@@ -146,15 +146,48 @@
                   </n-button>
                </div>
 
+               <div style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center;">
+                  <div style="flex: 1; display: flex; gap: 12px;">
+                     <n-input v-model:value="searchQuery" :placeholder="t('admin.search_placeholder')" @keyup.enter="fetchPlayers">
+                        <template #prefix><n-icon><Search /></n-icon></template>
+                     </n-input>
+                     <n-button @click="fetchPlayers">{{ t('admin.search_btn') }}</n-button>
+                  </div>
+                  
+                  <n-radio-group v-model:value="filterCheckedIn" size="small">
+                     <n-radio-button value="checked">{{ t('admin.filter_roster') || 'Current Roster' }}</n-radio-button>
+                     <n-radio-button value="all">{{ t('admin.filter_global') || 'Global Pool' }}</n-radio-button>
+                  </n-radio-group>
+               </div>
+
+               <div style="margin-bottom: 12px; display: flex; gap: 16px; font-size: 0.9em; color: #666;">
+                  <span>{{ t('admin.total_players') }}: <strong>{{ stats.total }}</strong></span>
+                  <span>{{ t('admin.checked_in_count') }}: <strong style="color: #18a058">{{ stats.checked }}</strong></span>
+               </div>
+
+               <n-data-table
+                  :columns="playerColumns"
+                  :data="filteredPlayers"
+                  :loading="loadingPlayers"
+                  :pagination="{ pageSize: 10 }"
+                  style="margin-bottom: 24px"
+               />
+
+               <n-divider title-placement="left">{{ t('admin.import_roster') }}</n-divider>
+
                <n-upload
                directory-dnd
                :custom-request="customRequest"
                accept=".csv"
+               @dragenter="handleDragEnter"
+               @dragleave="handleDragLeave"
+               @drop="handleDrop"
                >
-               <n-upload-dragger>
+               <n-upload-dragger :class="{ 'drag-over': isDraggingOver }">
                   <div style="margin-bottom: 12px">
-                     <n-icon size="48" :depth="3">
-                     <archive-outline />
+                     <n-icon size="48" :depth="isDraggingOver ? 1 : 3">
+                        <cloud-upload-outline v-if="isDraggingOver" />
+                        <archive-outline v-else />
                      </n-icon>
                   </div>
                   <n-text style="font-size: 16px">
@@ -162,6 +195,9 @@
                   </n-text>
                   <n-p depth="3" style="margin: 8px 0 0 0">
                      CSV Format: in_game_name,qq_id
+                  </n-p>
+                  <n-p depth="3" style="font-size: 0.8em; margin-top: 4px; color: #67C05D" v-if="selectedTournamentId">
+                     * Will be automatically added to {{ selectedTournament?.name }}
                   </n-p>
                </n-upload-dragger>
                </n-upload>
@@ -199,8 +235,8 @@
        </template>
     </n-modal>
 
-    <!-- Player Create Modal -->
-    <n-modal v-model:show="showPlayerModal" preset="card" :title="t('admin.add_player_manual') || 'Add Player'" style="width: 500px">
+    <!-- Player Create/Edit Modal -->
+    <n-modal v-model:show="showPlayerModal" preset="card" :title="editingPlayerId ? (t('admin.edit_player') || 'Edit Player') : (t('admin.add_player_manual') || 'Add Player')" style="width: 500px">
        <n-form label-placement="left" label-width="100">
           <n-form-item :label="t('admin.player_name') || 'Name'">
              <n-input v-model:value="playerForm.in_game_name" placeholder="In-game Name" />
@@ -208,12 +244,15 @@
           <n-form-item :label="t('admin.player_qq') || 'QQ ID'">
              <n-input v-model:value="playerForm.qq_id" placeholder="QQ ID (Unique)" />
           </n-form-item>
+          <div v-if="!editingPlayerId && selectedTournamentId" style="margin-left: 100px; font-size: 0.85em; color: #666; margin-bottom: 24px;">
+             <n-icon color="#18a058"><CheckmarkCircle /></n-icon> Will be added to current tournament
+          </div>
        </n-form>
        <template #footer>
           <div style="display: flex; justify-content: flex-end; gap: 12px;">
              <n-button @click="showPlayerModal = false">{{ t('admin.cancel') }}</n-button>
-             <n-button type="primary" @click="handleCreatePlayer" :loading="creatingPlayer" :disabled="!playerForm.in_game_name || !playerForm.qq_id">
-                {{ t('admin.create') }}
+             <n-button type="primary" @click="handleSavePlayer" :loading="creatingPlayer" :disabled="!playerForm.in_game_name || !playerForm.qq_id">
+                {{ editingPlayerId ? (t('admin.save') || 'Save') : (t('admin.create') || 'Create') }}
              </n-button>
           </div>
        </template>
@@ -297,23 +336,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { 
-  useMessage, NTabs, NTabPane, NUpload, NUploadDragger, NIcon, NText, NP, NEmpty, NButton, NTag, NButtonGroup, NDivider, NAlert, NSpace, NModal, NForm, NFormItem, NInput, NSpin, NInputNumber, NInputGroup, NMenu, NDatePicker, NGrid, NGridItem, NRadio, NRadioGroup
+  useMessage, NTabs, NTabPane, NUpload, NUploadDragger, NIcon, NText, NP, NEmpty, NButton, NTag, NButtonGroup, NDivider, NAlert, NSpace, NModal, NForm, NFormItem, NInput, NSpin, NInputNumber, NInputGroup, NMenu, NDatePicker, NGrid, NGridItem, NRadio, NRadioGroup, NRadioButton, NDataTable, NPopconfirm
 } from 'naive-ui'
-import { ArchiveOutline, Add, Trash, PersonAdd } from '@vicons/ionicons5'
-import type { UploadCustomRequestOptions } from 'naive-ui'
+import { ArchiveOutline, Add, Trash, PersonAdd, CloudUploadOutline, Create, Search, CheckmarkCircle, CloseCircle } from '@vicons/ionicons5'
+import type { UploadCustomRequestOptions, DataTableColumns } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
-import { listTournaments, createTournament, updateTournament, type Tournament } from '../api/tournaments'
+import { listTournaments, createTournament, updateTournament, removeParticipant, type Tournament } from '../api/tournaments'
 import { getStages } from '../api/stages'
-import { createPlayer } from '../api/players'
+import { createPlayer, listPlayers, updatePlayer, deletePlayer, type Player } from '../api/players'
 
 const router = useRouter()
 const message = useMessage()
 const auth = useAuthStore()
 const { t } = useI18n()
+
+// Player State
+const players = ref<Player[]>([])
+const loadingPlayers = ref(false)
+const searchQuery = ref('')
+const editingPlayerId = ref<string | null>(null)
+const filterCheckedIn = ref<'all' | 'checked'>('checked')
 
 // State
 const tournaments = ref<Tournament[]>([])
@@ -339,6 +385,9 @@ const playerForm = ref({
    qq_id: ''
 })
 
+// Drag and Drop state
+const isDraggingOver = ref(false)
+
 // Form State
 const formModel = ref({
    name: '',
@@ -359,6 +408,119 @@ const defaultPrizes = [
    { range: '22~27', amount: '10' }
 ]
 
+const playerColumns = computed<DataTableColumns<Player>>(() => [
+  { title: t('admin.checkin_status'), key: 'checked_in', width: 80, align: 'center', render: (row) => 
+      row.joined_tournament
+         ? (row.checked_in 
+             ? h(NIcon, { color: '#18a058', size: 20 }, { default: () => h(CheckmarkCircle) })
+             : h(NIcon, { color: '#ccc', size: 20 }, { default: () => h(CloseCircle) }))
+         : h(NTag, { size: 'small', bordered: false }, { default: () => '-' })
+  },
+  { title: t('admin.table_ign'), key: 'in_game_name', sorter: 'default' },
+  { title: t('admin.table_qq'), key: 'qq_id', sorter: 'default' },
+  { title: t('admin.table_claimed'), key: 'user_id', render: (row) => row.user_id ? h(NTag, { type: 'success', bordered: false }, { default: () => t('admin.yes') }) : h(NTag, { bordered: false }, { default: () => t('admin.no') }) },
+  {
+    title: t('admin.table_actions'),
+    key: 'actions',
+    render(row) {
+      // If player is NOT in the tournament, show "Join" button
+      if (!row.joined_tournament && selectedTournamentId.value) {
+          return h(NSpace, {}, { default: () => [
+            h(
+                NButton,
+                {
+                size: 'small',
+                type: 'primary',
+                secondary: true,
+                onClick: () => handleJoinTournament(row)
+                },
+                { 
+                    icon: () => h(NIcon, null, { default: () => h(PersonAdd) }),
+                    default: () => t('admin.join_btn') || 'Join'
+                }
+            ),
+            h(
+                NPopconfirm,
+                {
+                onPositiveClick: () => handleDeletePlayer(row.id)
+                },
+                {
+                trigger: () => h(
+                    NButton,
+                    {
+                    size: 'small',
+                    type: 'error',
+                    ghost: true
+                    },
+                    { icon: () => h(NIcon, null, { default: () => h(Trash) }) }
+                ),
+                default: () => t('admin.confirm_delete_global')
+                }
+            )
+          ]})
+      }
+
+      // If in tournament, show Remove (from tournament) and Edit
+      return h(NSpace, {}, {
+        default: () => [
+          h(
+            NButton,
+            {
+              size: 'small',
+              onClick: () => openEditPlayer(row)
+            },
+            { icon: () => h(NIcon, null, { default: () => h(Create) }) }
+          ),
+          h(
+            NPopconfirm,
+            {
+              onPositiveClick: () => handleRemoveFromTournament(row.id)
+            },
+            {
+              trigger: () => h(
+                NButton,
+                {
+                  size: 'small',
+                  type: 'warning',
+                  ghost: true
+                },
+                { icon: () => h(NIcon, null, { default: () => h(CloseCircle) }) }
+              ),
+              default: () => t('admin.confirm_remove')
+            }
+          )
+        ]
+      })
+    }
+  }
+])
+
+const handleJoinTournament = async (row: Player) => {
+    if (!selectedTournamentId.value) return
+    try {
+        // Re-use createPlayer logic: backend will detect existing QQ and just add to tournament
+        await createPlayer(auth.token!, {
+            in_game_name: row.in_game_name,
+            qq_id: row.qq_id
+        }, selectedTournamentId.value)
+        message.success(t('admin.player_joined') || 'Player added to roster')
+        await fetchPlayers()
+    } catch (e) {
+        message.error(t('admin.op_fail') || 'Operation failed')
+    }
+}
+
+const handleRemoveFromTournament = async (id: string) => {
+    if (!selectedTournamentId.value) return
+    try {
+        await removeParticipant(auth.token!, selectedTournamentId.value, id)
+        message.success(t('admin.status_updated', { status: 'Removed' }))
+        await fetchPlayers()
+    } catch (e) {
+        message.error(t('admin.op_fail'))
+    }
+}
+
 const selectedTournament = computed(() => 
    tournaments.value.find(t => t.id === selectedTournamentId.value)
 )
@@ -369,6 +531,20 @@ const tournamentOptions = computed(() =>
       key: t.id
    }))
 )
+
+const filteredPlayers = computed(() => {
+   if (filterCheckedIn.value === 'all') return players.value
+   // Current Roster: Anyone who has joined the tournament (whether checked in or not)
+   return players.value.filter(p => p.joined_tournament)
+})
+
+const stats = computed(() => {
+   // Total in roster (joined_tournament)
+   const total = players.value.filter(p => p.joined_tournament).length
+   // Actually checked in
+   const checked = players.value.filter(p => p.checked_in).length
+   return { total, checked }
+})
 
 onMounted(async () => {
    if (!auth.isAuthenticated) {
@@ -381,7 +557,17 @@ onMounted(async () => {
 watch(selectedTournamentId, async (newVal) => {
    if (newVal) {
       await fetchStages(newVal)
+      // Refresh players for the newly selected tournament
+      await fetchPlayers()
    }
+})
+
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+watch(searchQuery, () => {
+   if (debounceTimer) clearTimeout(debounceTimer)
+   debounceTimer = setTimeout(() => {
+      fetchPlayers()
+   }, 300)
 })
 
 const fetchAllTournaments = async () => {
@@ -398,6 +584,17 @@ const fetchAllTournaments = async () => {
    }
 }
 
+const fetchPlayers = async () => {
+   loadingPlayers.value = true
+   try {
+      players.value = await listPlayers(auth.token!, searchQuery.value, selectedTournamentId.value || undefined)
+   } catch (e) {
+      message.error(t('admin.fetch_fail') || 'Failed to fetch players')
+   } finally {
+      loadingPlayers.value = false
+   }
+}
+
 const fetchStages = async (tId: string) => {
    try {
       stages.value = await getStages(tId)
@@ -408,6 +605,12 @@ const fetchStages = async (tId: string) => {
 
 const handleTournamentSelect = (key: string) => {
    selectedTournamentId.value = key
+}
+
+const handleTabChange = (val: string) => {
+   if (val === 'roster') {
+      fetchPlayers()
+   }
 }
 
 const openCreateModal = () => {
@@ -544,21 +747,45 @@ ${prizeText}
 }
 
 const openPlayerModal = () => {
+   editingPlayerId.value = null
    playerForm.value = { in_game_name: '', qq_id: '' }
    showPlayerModal.value = true
 }
 
-const handleCreatePlayer = async () => {
+const openEditPlayer = (row: Player) => {
+   editingPlayerId.value = row.id
+   playerForm.value = { in_game_name: row.in_game_name, qq_id: row.qq_id }
+   showPlayerModal.value = true
+}
+
+const handleSavePlayer = async () => {
    if (!playerForm.value.in_game_name || !playerForm.value.qq_id) return
    creatingPlayer.value = true
    try {
-      await createPlayer(auth.token!, playerForm.value)
-      message.success(t('admin.player_created') || 'Player created successfully')
+      if (editingPlayerId.value) {
+         await updatePlayer(auth.token!, editingPlayerId.value, playerForm.value)
+         message.success(t('admin.player_updated') || 'Player updated successfully')
+      } else {
+         // Pass tournament ID to auto-check-in
+         await createPlayer(auth.token!, playerForm.value, selectedTournamentId.value || undefined)
+         message.success(t('admin.player_created') || 'Player created successfully')
+      }
       showPlayerModal.value = false
+      await fetchPlayers()
    } catch (e: any) {
       message.error(e.response?.data?.detail || t('admin.create_fail'))
    } finally {
       creatingPlayer.value = false
+   }
+}
+
+const handleDeletePlayer = async (id: string) => {
+   try {
+      await deletePlayer(auth.token!, id)
+      message.success(t('admin.player_deleted') || 'Player deleted')
+      await fetchPlayers()
+   } catch (e) {
+      message.error(t('admin.delete_fail') || 'Failed to delete player')
    }
 }
 
@@ -675,12 +902,38 @@ const getStageType = (type: string) => {
    return type
 }
 
+const handleDragEnter = (e: DragEvent) => {
+  e.preventDefault()
+  isDraggingOver.value = true
+}
+
+const handleDragLeave = (e: DragEvent) => {
+  e.preventDefault()
+  // Only set to false if dragging out of the entire component
+  // This can be tricky with child elements, but for n-upload-dragger it usually works fine
+  const target = e.target as HTMLElement
+  const relatedTarget = e.relatedTarget as HTMLElement
+  if (!target.contains(relatedTarget) && !relatedTarget?.closest('.n-upload-dragger')) {
+     isDraggingOver.value = false
+  }
+}
+
+const handleDrop = (e: DragEvent) => {
+  e.preventDefault()
+  isDraggingOver.value = false
+  // customRequest will handle the file, so nothing explicit here for file handling
+}
+
 const customRequest = async ({ file, onFinish, onError }: UploadCustomRequestOptions) => {
   const formData = new FormData()
   formData.append('file', file.file as File)
 
+  const url = selectedTournamentId.value 
+      ? `/api/v1/players/import?tournament_id=${selectedTournamentId.value}`
+      : '/api/v1/players/import'
+
   try {
-    const res = await fetch('/api/v1/players/import', {
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${auth.token || ''}`
@@ -691,6 +944,7 @@ const customRequest = async ({ file, onFinish, onError }: UploadCustomRequestOpt
     if (res.ok) {
       const data = await res.json()
       message.success(data.message || t('admin.upload_success'))
+      await fetchPlayers() // Refresh list immediately
       onFinish()
     } else if (res.status === 409) {
       // Handle Conflicts
@@ -745,7 +999,11 @@ const handleConflictResolve = async () => {
          return
       }
 
-      const res = await fetch('/api/v1/players/batch', {
+      const url = selectedTournamentId.value 
+          ? `/api/v1/players/batch?tournament_id=${selectedTournamentId.value}`
+          : '/api/v1/players/batch'
+
+      const res = await fetch(url, {
          method: 'POST',
          headers: {
             'Content-Type': 'application/json',
@@ -758,6 +1016,7 @@ const handleConflictResolve = async () => {
          const data = await res.json()
          message.success(data.message)
          showConflictModal.value = false
+         await fetchPlayers()
       } else {
          const errorData = await res.json()
          const errorMsg = errorData.detail || errorData.message || 'Batch import failed'
@@ -957,5 +1216,10 @@ const handleConflictResolve = async () => {
    font-size: 0.75rem;
    align-self: flex-start;
    padding: 1px 8px;
+}
+
+.n-upload-dragger.drag-over {
+  border: 2px dashed #4FB3FF !important; /* Emphasize border */
+  background-color: rgba(79, 179, 255, 0.1) !important; /* Light blue background */
 }
 </style>

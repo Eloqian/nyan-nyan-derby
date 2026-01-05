@@ -28,6 +28,10 @@ class UserResponse(BaseModel):
     email: Optional[str] = None
     is_admin: bool = False
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
 @router.post("/register", status_code=201, response_model=UserResponse)
 async def register(
     user_data: UserCreate,
@@ -127,3 +131,21 @@ async def read_users_me(
         email=current_user.email, 
         is_admin=current_user.is_admin
     )
+
+@router.post("/change-password")
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    from app.core.security import verify_password
+    
+    if not verify_password(payload.old_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect old password"
+        )
+    
+    service = UserService(session)
+    await service.update_password(current_user, payload.new_password)
+    return {"message": "Password updated successfully"}

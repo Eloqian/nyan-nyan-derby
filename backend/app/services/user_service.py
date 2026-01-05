@@ -28,3 +28,10 @@ class UserService:
         if not verify_password(password, user.hashed_password):
             return None
         return user
+
+    async def update_password(self, user: User, new_password: str) -> User:
+        user.hashed_password = get_password_hash(new_password)
+        self.session.add(user)
+        await self.session.commit()
+        await self.session.refresh(user)
+        return user

@@ -80,3 +80,13 @@ export const getTournamentParticipants = async (tournamentId: string): Promise<T
   if (!response.ok) return []
   return response.json()
 }
+
+export const removeParticipant = async (token: string, tournamentId: string, playerId: string) => {
+  const response = await fetch(`${API_BASE_URL}/tournaments/${tournamentId}/participants/${playerId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  })
+  if (!response.ok) throw new Error('Failed to remove participant')
+}

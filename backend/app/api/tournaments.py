@@ -181,6 +181,34 @@ async def get_participants(
         })
     return data
 
+@router.delete("/{tournament_id}/participants/{player_id}", status_code=204)
+async def remove_participant(
+    tournament_id: UUID,
+    player_id: UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Admin only: Remove a player from the tournament roster.
+    Does NOT delete the player profile.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    stmt = select(TournamentParticipant).where(
+        TournamentParticipant.tournament_id == tournament_id,
+        TournamentParticipant.player_id == player_id
+    )
+    result = await session.exec(stmt)
+    participant = result.first()
+    
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+        
+    await session.delete(participant)
+    await session.commit()
+    return None
+
 def generate_rules_template(tourney: Tournament) -> str:
     # Generate a Markdown-friendly template
     date_str = tourney.start_time.strftime("%Y年%m月%d日") if tourney.start_time else "待定"

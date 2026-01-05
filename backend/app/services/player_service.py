@@ -1,7 +1,10 @@
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.models import Player, User
-from typing import List, Optional
+from app.models.user import Player, User
+from app.models.tournament import TournamentParticipant
+from typing import List, Optional, Dict, Any
+from uuid import UUID
+from datetime import datetime
 import csv
 from io import StringIO
 
@@ -9,17 +12,56 @@ class PlayerService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    async def get_player(self, player_id: UUID) -> Optional[Player]:
+        return await self.session.get(Player, player_id)
+
     async def get_player_by_qq(self, qq_id: str) -> Optional[Player]:
         statement = select(Player).where(Player.qq_id == qq_id)
         result = await self.session.exec(statement)
         return result.first()
 
-    async def create_player(self, in_game_name: str, qq_id: str) -> Player:
+    async def create_player(self, in_game_name: str, qq_id: str, tournament_id: Optional[UUID] = None) -> Player:
         player = Player(in_game_name=in_game_name, qq_id=qq_id)
+        
+        # Auto-link if user already exists
+        user_stmt = select(User).where(User.username == qq_id)
+        user_res = await self.session.exec(user_stmt)
+        user = user_res.first()
+        if user:
+            player.user_id = user.id
+
+        self.session.add(player)
+        # Flush to get ID
+        await self.session.flush()
+        
+        if tournament_id:
+            await self._add_to_tournament(player.id, tournament_id)
+            
+        await self.session.commit()
+        await self.session.refresh(player)
+        return player
+
+    async def update_player(self, player_id: UUID, update_data: Dict[str, Any]) -> Optional[Player]:
+        player = await self.get_player(player_id)
+        if not player:
+            return None
+            
+        for key, value in update_data.items():
+            setattr(player, key, value)
+            
         self.session.add(player)
         await self.session.commit()
         await self.session.refresh(player)
         return player
+
+    async def delete_player(self, player_id: UUID) -> bool:
+        player = await self.get_player(player_id)
+        if not player:
+            return False
+            
+        await self.session.delete(player)
+        await self.session.commit()
+        return True
 
     async def validate_roster_csv(self, csv_content: str):
         """
@@ -79,9 +121,10 @@ class PlayerService:
             "existing": existing_qqs
         }
 
-    async def batch_create_players(self, players_data: List[dict]) -> int:
+    async def batch_create_players(self, players_data: List[dict], tournament_id: Optional[UUID] = None) -> int:
         """
         Bulk create players from a clean list.
+        If tournament_id is provided, adds them to the tournament (even if they already existed).
         """
         count = 0
         processed_qqs = set()
@@ -91,23 +134,74 @@ class PlayerService:
             if not qq_id:
                 continue
                 
-            # 1. Check if we already processed this QQ in this batch
             if qq_id in processed_qqs:
                 continue
             
-            # 2. Check if it exists in DB
             existing = await self.get_player_by_qq(qq_id)
+            
             if not existing:
+                # Case 1: New Player
                 player = Player(
                     in_game_name=p_data['in_game_name'],
                     qq_id=qq_id
                 )
+                
+                # Auto-link if user already exists
+                user_stmt = select(User).where(User.username == qq_id)
+                user_res = await self.session.exec(user_stmt)
+                user = user_res.first()
+                if user:
+                    player.user_id = user.id
+                
                 self.session.add(player)
-                processed_qqs.add(qq_id)
+                await self.session.flush() # Get ID
                 count += 1
+                
+                # Directly add to tournament without query (since player is new)
+                if tournament_id:
+                    tp = TournamentParticipant(
+                        tournament_id=tournament_id,
+                        player_id=player.id,
+                        checked_in=False,
+                        checked_in_at=None
+                    )
+                    self.session.add(tp)
+            else:
+                # Case 2: Existing Player
+                # Update name if changed? For now, keep existing.
+                
+                # Check if we should link user now (if it wasn't linked before)
+                if existing.user_id is None:
+                     user_stmt = select(User).where(User.username == qq_id)
+                     user_res = await self.session.exec(user_stmt)
+                     user = user_res.first()
+                     if user:
+                         existing.user_id = user.id
+                         self.session.add(existing)
+
+                if tournament_id:
+                    await self._add_to_tournament(existing.id, tournament_id)
+            
+            processed_qqs.add(qq_id)
                 
         await self.session.commit()
         return count
+
+    async def _add_to_tournament(self, player_id: UUID, tournament_id: UUID):
+        """Helper to safely add player to tournament if not already present."""
+        stmt = select(TournamentParticipant).where(
+            TournamentParticipant.player_id == player_id,
+            TournamentParticipant.tournament_id == tournament_id
+        )
+        res = await self.session.exec(stmt)
+        if not res.first():
+            tp = TournamentParticipant(
+                tournament_id=tournament_id,
+                player_id=player_id,
+                checked_in=False,
+                checked_in_at=None
+            )
+            self.session.add(tp)
 
     async def claim_player(self, user: User, qq_id: str) -> bool:
         player = await self.get_player_by_qq(qq_id)

@@ -8,7 +8,11 @@
 
       <n-form ref="formRef" :model="model" :rules="rules">
         <n-form-item path="username" :label="isLogin ? t('login.username') : t('login.qq_number')">
-          <n-input v-model:value="model.username" :placeholder="isLogin ? t('login.trainer_name') : t('login.qq_number')" />
+          <n-input 
+            v-model:value="model.username" 
+            :placeholder="isLogin ? t('login.trainer_name') : t('login.qq_number')" 
+            @keydown.enter="handleSubmit"
+          />
         </n-form-item>
         <n-form-item path="password" :label="t('login.password')">
           <n-input
@@ -16,6 +20,7 @@
             type="password"
             show-password-on="click"
             :placeholder="t('login.secret_code')"
+            @keydown.enter="handleSubmit"
           />
         </n-form-item>
         <!-- Email optional for now -->
